@@ -1,0 +1,50 @@
+@import 'tailwindcss';
+
+/*
+ * Tokens de design extraídos de `Pagina Inicial Publica.dc.html`
+ * (Claude Design — projeto ddc13361-c194-4fda-9c07-60e119fc5b6d).
+ *
+ * Observação: o fundo #e9ebe9 do mockup é a mesa de trabalho do canvas,
+ * não uma cor da página — por isso não vira token.
+ */
+@theme {
+  /* Marca */
+  --color-brand: #0f5c4a; /* botões, links, numerais, filetes */
+  --color-brand-strong: #0a3c30; /* hover de link */
+  --color-brand-wash: #f2f7f4; /* cartão da encarregada (aplicado a 60%) */
+
+  /* Superfícies */
+  --color-surface: #ffffff;
+  --color-surface-muted: #f5f7f5; /* faixa "Como o atendimento funciona" */
+
+  /* Texto */
+  --color-ink: #101413; /* títulos */
+  --color-ink-body: #2c3431; /* parágrafos */
+  --color-ink-soft: #4a5651; /* descrições secundárias */
+  --color-ink-muted: #5d6b65; /* rótulos, rodapé */
+
+  /* Traços */
+  --color-line: #d7ddd9; /* divisórias internas */
+  --color-line-strong: #c9d1cc; /* borda externa */
+  --color-line-button: #b8c5bf; /* borda de botão secundário */
+  --color-line-wash: #cddcd4; /* divisória dentro do cartão */
+
+  /* Tipografia */
+  --font-sans: 'Public Sans', system-ui, sans-serif; /* corpo */
+  --font-serif: 'Source Serif 4', Georgia, serif; /* títulos e números */
+  --font-label: 'Nunito', sans-serif; /* eyebrows e numerais */
+}
+
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink-body);
+    font-family: var(--font-sans);
+  }
+
+  /* O mockup não define estados de foco; adicionamos um visível e consistente. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}

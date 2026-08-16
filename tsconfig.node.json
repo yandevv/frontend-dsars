@@ -14,6 +14,10 @@
     "module": "preserve",
     "moduleResolution": "bundler",
 
+    // Permite `import ... from './vite.config.ts'`, exigido pelo carregador de
+    // configuração nativo do Vite. Seguro porque `noEmit` está ativo abaixo.
+    "allowImportingTsExtensions": true,
+
     // Include Node.js types and avoid accidentally including other `@types/*` packages.
     "types": ["node"],
 
