@@ -22,6 +22,17 @@ export default defineConfigWithVueTs(
   vueTsConfigs.recommended,
 
   {
+    name: 'app/rules',
+    rules: {
+      // Com TypeScript, `prop?: T` já diz que a prop é opcional e que o valor
+      // ausente é `undefined`. Exigir um default explícito só gera ruído — e em
+      // BaseButton é justamente o `undefined` que seleciona o elemento a
+      // renderizar (RouterLink, <a> ou <button>).
+      'vue/require-default-prop': 'off',
+    },
+  },
+
+  {
     ...pluginCypress.configs.recommended,
     files: [
       'cypress/e2e/**/*.{cy,spec}.{js,ts,jsx,tsx}',
