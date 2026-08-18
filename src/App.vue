@@ -1,15 +1,13 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { RouterView } from 'vue-router'
+</script>
 
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a
-      href="https://vuejs.org/"
-      target="_blank"
-      rel="noopener"
-    >vuejs.org</a> to read the
-    documentation
-  </p>
+  <a
+    href="#conteudo-principal"
+    class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-brand focus:px-4 focus:py-2 focus:font-medium focus:text-white"
+  >
+    Ir para o conteúdo principal
+  </a>
+  <RouterView />
 </template>
-
-<style scoped></style>

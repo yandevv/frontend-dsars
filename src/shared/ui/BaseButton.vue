@@ -32,6 +32,18 @@ const tag = computed(() => {
   return 'button'
 })
 
+/**
+ * Só os atributos do elemento escolhido.
+ *
+ * Passar `:href="undefined"` junto com `:to` apagaria o `href` que o próprio
+ * RouterLink gera, deixando uma <a> sem destino — inalcançável pelo teclado.
+ */
+const elementAttrs = computed(() => {
+  if (to !== undefined) return { to }
+  if (href !== undefined) return { href }
+  return { type }
+})
+
 const classes = computed(() => [
   'inline-flex items-center justify-center border text-center no-underline transition-colors',
   size === 'sm' ? 'px-5 py-3 text-[15px]' : 'px-[30px] py-[15px] text-base',
@@ -45,9 +57,7 @@ const classes = computed(() => [
 <template>
   <component
     :is="tag"
-    :to="to"
-    :href="href"
-    :type="tag === 'button' ? type : undefined"
+    v-bind="elementAttrs"
     :class="classes"
   >
     <slot />
