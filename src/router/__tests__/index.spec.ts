@@ -7,6 +7,8 @@ describe('router', () => {
     ['/', 'home'],
     ['/entrar', 'login'],
     ['/registrar', 'register'],
+    ['/termos-de-uso', 'terms'],
+    ['/aviso-de-privacidade', 'privacy'],
   ])('resolve %s para a rota %s', (path, name) => {
     expect(router.resolve(path).name).toBe(name)
   })

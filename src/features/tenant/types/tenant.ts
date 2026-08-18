@@ -19,6 +19,12 @@ export interface Tenant {
   /** Versão curta do nome, usada no cabeçalho em telas estreitas. */
   shortName: string
   tagline: string
+  /**
+   * Artigo definido que acompanha o nome em português ("O Instituto…",
+   * "A Clínica…"). Fica na configuração porque varia com o nome de cada
+   * organização e não pode ser deduzido com segurança em tempo de execução.
+   */
+  article: string
   /** CNPJ, já formatado para exibição. */
   registrationId: string
   address: string

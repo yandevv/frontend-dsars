@@ -11,6 +11,7 @@ export const institutoMeridiano: Readonly<Tenant> = Object.freeze({
   name: 'Instituto Meridiano de Saúde',
   shortName: 'Instituto Meridiano',
   tagline: 'Atendimento a requisições de titulares de dados',
+  article: 'O',
   registrationId: '12.345.678/0001-90',
   address: 'Av. Brasil, 1420 — Franca/SP, 14401-135',
   dpo: Object.freeze({
