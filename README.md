@@ -1,70 +1,67 @@
 # frontend-dsars
 
-This template should help get you started developing with Vue 3 in Vite.
+Front-end da **Tutela**, plataforma em que organizações recebem e conduzem
+**requisições de titulares de dados** previstas na Lei Geral de Proteção de Dados
+(Lei nº 13.709/2018). Projeto de TCC.
 
-## Recommended IDE Setup
+Cada organização cliente tem o seu próprio portal público: o mesmo produto, com a
+identificação, a pessoa encarregada e os contatos daquela organização.
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## Stack
 
-## Recommended Browser Setup
+Vue 3 (Composition API com `<script setup>`), TypeScript, Vite, Vue Router, Pinia,
+Tailwind CSS v4, Vitest e Cypress.
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+## Como rodar
 
 ```sh
 pnpm install
+pnpm dev            # ambiente de desenvolvimento
+pnpm build          # type-check + build de produção
+pnpm test:unit      # testes de unidade (Vitest)
+pnpm test:e2e       # testes de ponta a ponta (Cypress, sobre o build)
+pnpm lint           # oxlint + ESLint, com correção automática
+pnpm type-check     # vue-tsc
 ```
 
-### Compile and Hot-Reload for Development
+## Organização do código
 
-```sh
-pnpm dev
+```
+src/
+  assets/styles/main.css   Tailwind + tokens de design (@theme)
+  shared/                  o que atravessa funcionalidades
+    ui/                    componentes de base (prefixo Base*)
+    types/  constants/     tipos e listas de domínio (ex.: direitos do art. 18)
+  features/                uma pasta por área do produto
+    tenant/                organização dona do portal
+      types/ data/ composables/
+    landing/               página inicial pública
+      components/ data/ types/
+  views/                   destinos de rota
+  router/                  definição das rotas
 ```
 
-### Type-Check, Compile and Minify for Production
+A regra é simples: **código de domínio mora em `features/`**, e só sobe para
+`shared/` quando mais de uma funcionalidade precisa dele. Cada nova tela do
+sistema (fila de atendimento, nova requisição, relatório gerencial…) entra como
+uma pasta em `features/` sem mexer nas outras.
 
-```sh
-pnpm build
-```
+### De onde vem o conteúdo da página
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+Nada de texto variável fica preso no template. Os dados da organização vêm de
+`features/tenant/composables/useTenant.ts`, hoje servidos por uma configuração
+fixa em `features/tenant/data/`. **Essa função é a única emenda com a origem dos
+dados**: quando o back-end existir, basta trocar o corpo dela — por exemplo,
+resolvendo o tenant pelo subdomínio — sem tocar em nenhum componente.
 
-```sh
-pnpm test:unit
-```
+### Design
 
-### Run End-to-End Tests with [Cypress](https://www.cypress.io/)
+As telas vêm do projeto no Claude Design
+`ddc13361-c194-4fda-9c07-60e119fc5b6d`. A página inicial corresponde ao arquivo
+`Pagina Inicial Publica.dc.html`, e os tokens de cor e tipografia foram extraídos
+dele para o bloco `@theme` de `src/assets/styles/main.css`.
 
-```sh
-pnpm test:e2e:dev
-```
-
-This runs the end-to-end tests against the Vite development server.
-It is much faster than the production build.
-
-But it's still recommended to test the production build with `test:e2e` before deploying (e.g. in CI environments):
-
-```sh
-pnpm build
-pnpm test:e2e
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-pnpm lint
-```
+O mockup traz dois quadros — 1280 px e 360 px — que são **a mesma página em duas
+larguras**, e não duas páginas. Onde o quadro de 360 px encurtava o texto,
+mantivemos a redação completa: manter duas versões da mesma frase não se sustenta
+e esconderia conteúdo de quem acessa pelo celular.
