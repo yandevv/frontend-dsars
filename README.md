@@ -37,6 +37,8 @@ src/
       types/ data/ composables/
     landing/               página inicial pública
       components/ data/ types/
+    auth/                  criar conta e entrar
+      components/ composables/ constants/ data/ services/ types/
   views/                   destinos de rota
   router/                  definição das rotas
 ```
@@ -54,12 +56,32 @@ fixa em `features/tenant/data/`. **Essa função é a única emenda com a origem
 dados**: quando o back-end existir, basta trocar o corpo dela — por exemplo,
 resolvendo o tenant pelo subdomínio — sem tocar em nenhum componente.
 
+### As contas ainda não têm servidor
+
+`features/auth/services/` cumpre para as contas o mesmo papel que `useTenant()`
+cumpre para a organização: é a emenda com o back-end. As telas de cadastro e de
+acesso já conversam com essas funções — inclusive nos casos de recusa — e
+responder de verdade é trocar o corpo delas por chamadas HTTP, sem tocar em
+componente nenhum.
+
+Enquanto isso, elas respondem a partir das contas de demonstração em
+`features/auth/data/accounts.ts`, que são as mesmas publicadas no protótipo do
+design. Existem para que os estados previstos nas regras de negócio (e-mail já
+cadastrado, conta pendente de confirmação, bloqueio por tentativas) possam ser
+percorridos e testados antes de haver API, e somem junto com o serviço falso.
+
 ### Design
 
 As telas vêm do projeto no Claude Design
-`ddc13361-c194-4fda-9c07-60e119fc5b6d`. A página inicial corresponde ao arquivo
-`Pagina Inicial Publica.dc.html`, e os tokens de cor e tipografia foram extraídos
-dele para o bloco `@theme` de `src/assets/styles/main.css`.
+`ddc13361-c194-4fda-9c07-60e119fc5b6d`:
+
+| Tela | Arquivo do design |
+| --- | --- |
+| `/` | `Pagina Inicial Publica.dc.html` |
+| `/registrar` | `Registro de Conta.dc.html` |
+
+Os tokens de cor e tipografia foram extraídos desses arquivos para o bloco
+`@theme` de `src/assets/styles/main.css`.
 
 O mockup traz dois quadros — 1280 px e 360 px — que são **a mesma página em duas
 larguras**, e não duas páginas. Onde o quadro de 360 px encurtava o texto,

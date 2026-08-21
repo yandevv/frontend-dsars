@@ -39,7 +39,7 @@ describe('Página inicial pública', () => {
     cy.get('main').contains('a', 'Registrar-se').click()
 
     cy.location('pathname').should('eq', '/registrar')
-    cy.get('h1').should('contain', 'Registrar-se')
+    cy.get('h1').should('contain', 'Criar conta')
   })
 
   it('leva ao acesso pela chamada secundária', () => {

@@ -29,6 +29,23 @@
   --color-line-button: #b8c5bf; /* borda de botão secundário */
   --color-line-wash: #cddcd4; /* divisória dentro do cartão */
 
+  /* Estados — introduzidos por `Login.dc.html` e `Registro de Conta.dc.html` */
+  --color-danger: #a3261d; /* borda e símbolo de erro */
+  --color-danger-strong: #7d1d16; /* título de erro */
+  --color-danger-body: #5c1811; /* texto dentro do bloco de erro */
+  --color-danger-wash: #fdf2f0;
+  --color-warning: #b8541f; /* pendências, força média de senha */
+  --color-warning-wash: #fdf5ef;
+
+  /* Formulários */
+  --color-field-line: #9aa7a1; /* borda de campo em repouso */
+  --color-field-placeholder: #8a958f;
+  --color-field-disabled: #f2f4f3; /* fundo de campo travado */
+  --color-field-disabled-line: #c2ccc7;
+  --color-track: #dde3df; /* trilho do medidor de força */
+  --color-brand-busy: #4a7f71; /* botão durante o envio */
+  --color-ink-faint: #6b7873; /* critério ainda não atendido */
+
   /* Tipografia */
   --font-sans: 'Public Sans', system-ui, sans-serif; /* corpo */
   --font-serif: 'Source Serif 4', Georgia, serif; /* títulos e números */
@@ -40,6 +57,10 @@
     background-color: var(--color-surface);
     color: var(--color-ink-body);
     font-family: var(--font-sans);
+  }
+
+  input::placeholder {
+    color: var(--color-field-placeholder);
   }
 
   /* O mockup não define estados de foco; adicionamos um visível e consistente. */

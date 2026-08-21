@@ -22,6 +22,11 @@ const router = createRouter({
       component: () => import('@/views/RegisterView.vue'),
     },
     {
+      path: '/recuperar-acesso',
+      name: 'password-recovery',
+      component: () => import('@/views/PasswordRecoveryView.vue'),
+    },
+    {
       path: '/termos-de-uso',
       name: 'terms',
       component: () => import('@/views/TermsView.vue'),

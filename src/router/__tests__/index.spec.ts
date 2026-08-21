@@ -7,6 +7,7 @@ describe('router', () => {
     ['/', 'home'],
     ['/entrar', 'login'],
     ['/registrar', 'register'],
+    ['/recuperar-acesso', 'password-recovery'],
     ['/termos-de-uso', 'terms'],
     ['/aviso-de-privacidade', 'privacy'],
   ])('resolve %s para a rota %s', (path, name) => {

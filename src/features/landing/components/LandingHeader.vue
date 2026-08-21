@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import BaseButton from '@/shared/ui/BaseButton.vue'
-import BaseLogo from '@/shared/ui/BaseLogo.vue'
+import TenantBrand from '@/shared/ui/TenantBrand.vue'
 import type { Tenant } from '@/features/tenant/types/tenant'
 
 defineProps<{ tenant: Tenant }>()
@@ -10,22 +10,7 @@ defineProps<{ tenant: Tenant }>()
   <header
     class="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 md:px-14 md:py-[18px]"
   >
-    <div class="flex items-center gap-2.5 md:gap-3">
-      <BaseLogo
-        size="sm"
-        class="md:size-[26px]"
-      />
-      <div class="flex flex-col gap-px">
-        <span class="font-serif text-sm font-semibold leading-tight text-ink md:text-base">
-          <!-- Em telas estreitas o nome completo quebraria em duas linhas. -->
-          <span class="md:hidden">{{ tenant.shortName }}</span>
-          <span class="hidden md:inline">{{ tenant.name }}</span>
-        </span>
-        <span class="hidden text-xs leading-tight text-ink-muted md:inline">
-          {{ tenant.tagline }}
-        </span>
-      </div>
-    </div>
+    <TenantBrand :tenant="tenant" />
 
     <nav
       aria-label="Acesso à conta"
