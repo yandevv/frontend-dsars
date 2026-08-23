@@ -22,6 +22,12 @@ const router = createRouter({
       component: () => import('@/views/RegisterView.vue'),
     },
     {
+      // O token vem na URL porque o convite é um link nominal enviado por e-mail.
+      path: '/convite/:token',
+      name: 'invite',
+      component: () => import('@/views/InviteView.vue'),
+    },
+    {
       path: '/recuperar-acesso',
       name: 'password-recovery',
       component: () => import('@/views/PasswordRecoveryView.vue'),

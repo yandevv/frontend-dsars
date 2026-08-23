@@ -74,7 +74,24 @@ inclusive o quadro "Só no protótipo" que as lista na tela de acesso.
 Uma ressalva que sobrevive ao back-end: a contagem de tentativas e o bloqueio do
 RN008 rodam no navegador **porque ainda não há servidor**. Proteção contra força
 bruta precisa morar no servidor; o que o cliente faz é apenas explicar o bloqueio
-a quem está na tela.
+a quem está na tela. Vale o mesmo para o vencimento de um convite: quem valida
+um token é o servidor, e conferir a data aqui só serve para a tela ter o que
+mostrar.
+
+### O convite de encarregado
+
+`/convite/:token` é a mesma tela de cadastro com duas diferenças que vêm do
+convite: o e-mail chega travado, porque trocá-lo desfaria o vínculo, e não há
+escolha de perfil — ele foi atribuído por quem convidou. A conta nasce com o
+e-mail já confirmado: o link foi enviado para aquele endereço e aberto por quem o
+recebeu, que é a mesma prova que o RN005 pede no cadastro comum.
+
+Como um convite chega por e-mail, nenhum dos estados de recusa seria alcançável
+pela navegação. Os convites de demonstração em `features/auth/data/invites.ts`
+cobrem os quatro (em aberto, vencido, já utilizado, inexistente) e estão listados
+na própria tela, no quadro "Só no protótipo". As datas deles são relativas a hoje
+em vez de fixas — um convite "válido" com data gravada no código venceria sozinho
+e levaria consigo a tela que ele existe para demonstrar.
 
 ### Design
 
@@ -86,6 +103,7 @@ As telas vêm do projeto no Claude Design
 | `/` | `Pagina Inicial Publica.dc.html` |
 | `/registrar` | `Registro de Conta.dc.html` |
 | `/entrar` | `Login.dc.html` |
+| `/convite/:token` | `Registro de Conta.dc.html` (quadro 1c) |
 
 Os tokens de cor e tipografia foram extraídos desses arquivos para o bloco
 `@theme` de `src/assets/styles/main.css`.

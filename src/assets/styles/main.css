@@ -37,6 +37,9 @@
   --color-warning: #b8541f; /* pendências, força média de senha */
   --color-warning-wash: #fdf5ef;
 
+  /* Sobre fundo escuro — cabeçalho do convite em `Registro de Conta.dc.html` */
+  --color-ink-on-dark: #b6c2bd; /* apoio e rótulos sobre o preto da marca */
+
   /* Formulários */
   --color-field-line: #9aa7a1; /* borda de campo em repouso */
   --color-field-placeholder: #8a958f;

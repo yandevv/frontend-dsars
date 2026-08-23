@@ -1,34 +1,49 @@
 <script setup lang="ts">
-import { RouterLink, type RouteLocationRaw } from 'vue-router'
+import type { RouteLocationRaw } from 'vue-router'
+
+import AuthChrome from '@/features/auth/components/AuthChrome.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
-import TenantBrand from '@/shared/ui/TenantBrand.vue'
-import { PLATFORM_NAME } from '@/shared/constants/platform'
 import type { Tenant } from '@/features/tenant/types/tenant'
 
 /**
- * Moldura das telas de conta: cabeçalho, as duas colunas e o rodapé.
+ * Moldura das telas de conta em duas colunas: formulário à esquerda, apoio à
+ * direita.
  *
  * Entrar e criar conta são a mesma página com os papéis trocados — o que muda
- * é para onde o cabeçalho manda quem chegou na tela errada.
+ * é para onde o cabeçalho manda quem chegou na tela errada. O convite não tem
+ * para onde mandar ninguém: quem chega nele veio de um link nominal, então a
+ * ação alternativa é opcional e dá lugar à validade do convite.
  */
-defineProps<{
+const {
+  tenant,
+  tagline,
+  tone = 'light-surface',
+  altPrompt,
+  altLabel,
+  altTo,
+} = defineProps<{
   tenant: Tenant
+  tagline?: string
+  tone?: 'light-surface' | 'dark-surface'
   /** Pergunta do cabeçalho, ex.: "Já tem conta?". */
-  altPrompt: string
-  altLabel: string
-  altTo: RouteLocationRaw
+  altPrompt?: string
+  altLabel?: string
+  altTo?: RouteLocationRaw
 }>()
 </script>
 
 <template>
-  <div class="mx-auto flex min-h-dvh w-full max-w-7xl flex-col">
-    <header
-      class="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5 md:px-14 md:py-[18px]"
-    >
-      <TenantBrand :tenant="tenant" />
-
-      <div class="flex items-center gap-3.5">
-        <span class="hidden text-sm text-ink-muted md:inline">{{ altPrompt }}</span>
+  <AuthChrome
+    :tenant="tenant"
+    :tagline="tagline"
+    :tone="tone"
+  >
+    <template #action>
+      <template v-if="altTo !== undefined && altLabel !== undefined">
+        <span
+          v-if="altPrompt"
+          class="hidden text-sm text-ink-muted md:inline"
+        >{{ altPrompt }}</span>
         <BaseButton
           :to="altTo"
           variant="secondary"
@@ -36,8 +51,9 @@ defineProps<{
         >
           {{ altLabel }}
         </BaseButton>
-      </div>
-    </header>
+      </template>
+      <slot name="header-action" />
+    </template>
 
     <main
       id="conteudo-principal"
@@ -54,31 +70,5 @@ defineProps<{
         <slot name="aside" />
       </div>
     </main>
-
-    <footer
-      class="flex flex-col gap-3 border-t border-line px-5 py-6 md:flex-row-reverse md:items-center md:justify-between md:gap-8 md:px-14 md:py-[22px]"
-    >
-      <nav
-        aria-label="Documentos legais"
-        class="flex justify-between gap-5 md:justify-start"
-      >
-        <RouterLink
-          :to="{ name: 'terms' }"
-          class="text-sm text-brand hover:text-brand-strong"
-        >
-          Termos de uso
-        </RouterLink>
-        <RouterLink
-          :to="{ name: 'privacy' }"
-          class="text-sm text-brand hover:text-brand-strong"
-        >
-          Aviso de privacidade
-        </RouterLink>
-      </nav>
-
-      <p class="text-center text-xs leading-[1.6] text-ink-muted md:text-start md:text-[13px]">
-        {{ tenant.name }} · Portal operado com a plataforma {{ PLATFORM_NAME }}.
-      </p>
-    </footer>
-  </div>
+  </AuthChrome>
 </template>

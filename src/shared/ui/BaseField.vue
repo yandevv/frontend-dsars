@@ -16,6 +16,7 @@ const {
   hintTone = 'muted',
   error,
   disabled = false,
+  locked = false,
   placeholder,
   autocomplete,
   required = false,
@@ -27,7 +28,15 @@ const {
   hintTone?: 'muted' | 'positive'
   /** Quando presente, substitui o auxílio e marca o campo como inválido. */
   error?: string
+  /** Fora de alcance por ora — o envio em curso, o bloqueio do RN008. */
   disabled?: boolean
+  /**
+   * Nunca editável: o e-mail que vem no convite, por exemplo.
+   *
+   * Trava o campo sem esmaecer rótulo e auxílio, como o design faz no quadro
+   * 1c — quem não pode mudar o valor precisa justamente ler o porquê.
+   */
+  locked?: boolean
   placeholder?: string
   autocomplete?: string
   required?: boolean
@@ -46,10 +55,12 @@ const describedBy = computed(() => {
   return ids.length > 0 ? ids.join(' ') : undefined
 })
 
+const isFrozen = computed(() => disabled || locked)
+
 const inputClasses = computed(() => [
   'w-full bg-surface px-3.5 py-[13px] text-base text-ink',
   error ? 'border-2 border-danger' : 'border border-field-line',
-  disabled ? 'border-field-disabled-line bg-field-disabled text-ink-soft' : '',
+  isFrozen.value ? 'border-field-disabled-line bg-field-disabled text-ink-soft' : '',
 ])
 
 function onInput(event: Event) {
@@ -87,7 +98,7 @@ defineExpose({ focus: () => input.value?.focus() })
       ref="input"
       :type="type"
       :value="model"
-      :disabled="disabled"
+      :disabled="isFrozen"
       :placeholder="placeholder"
       :autocomplete="autocomplete"
       :required="required"
