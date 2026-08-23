@@ -5,7 +5,6 @@ import { useRoute } from 'vue-router'
 import AuthChrome from '@/features/auth/components/AuthChrome.vue'
 import AuthLayout from '@/features/auth/components/AuthLayout.vue'
 import AuthSupportContact from '@/features/auth/components/AuthSupportContact.vue'
-import DemoInviteNotice from '@/features/auth/components/DemoInviteNotice.vue'
 import InviteAside from '@/features/auth/components/InviteAside.vue'
 import InviteForm from '@/features/auth/components/InviteForm.vue'
 import InviteUnavailable from '@/features/auth/components/InviteUnavailable.vue'
@@ -90,7 +89,6 @@ watch(
         :tenant="tenant"
         :accepted="accepted"
       />
-      <DemoInviteNotice />
     </template>
   </AuthLayout>
 
@@ -134,8 +132,6 @@ watch(
             eyebrow="Dúvidas sobre o convite"
             :dpo="tenant.dpo"
           />
-
-          <DemoInviteNotice />
         </template>
       </div>
     </main>

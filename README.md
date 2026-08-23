@@ -68,8 +68,19 @@ Enquanto isso, elas respondem a partir das contas de demonstração em
 `features/auth/data/accounts.ts`, que são as mesmas publicadas no protótipo do
 design. Existem para que os estados previstos nas regras de negócio (e-mail já
 cadastrado, conta pendente de confirmação, bloqueio por tentativas) possam ser
-percorridos e testados antes de haver API, e somem junto com o serviço falso —
-inclusive o quadro "Só no protótipo" que as lista na tela de acesso.
+percorridos e testados antes de haver API, e somem junto com o serviço falso.
+
+Senha `SenhaSegura!123` para todas; qualquer outra combinação falha, como no
+sistema real.
+
+| Conta | Para exercitar |
+| --- | --- |
+| `titular@exemplo.com.br` | acesso de titular |
+| `helena.vasconcelos@meridianosaude.org.br` | acesso de encarregado |
+| `pendente@exemplo.com.br` | conta sem o e-mail confirmado (RN005) |
+
+O bloqueio do RN008 se desfaz sozinho ao fim dos 15 minutos; para não esperar,
+recarregue a página.
 
 Uma ressalva que sobrevive ao back-end: a contagem de tentativas e o bloqueio do
 RN008 rodam no navegador **porque ainda não há servidor**. Proteção contra força
@@ -86,12 +97,18 @@ escolha de perfil — ele foi atribuído por quem convidou. A conta nasce com o
 e-mail já confirmado: o link foi enviado para aquele endereço e aberto por quem o
 recebeu, que é a mesma prova que o RN005 pede no cadastro comum.
 
-Como um convite chega por e-mail, nenhum dos estados de recusa seria alcançável
-pela navegação. Os convites de demonstração em `features/auth/data/invites.ts`
-cobrem os quatro (em aberto, vencido, já utilizado, inexistente) e estão listados
-na própria tela, no quadro "Só no protótipo". As datas deles são relativas a hoje
-em vez de fixas — um convite "válido" com data gravada no código venceria sozinho
-e levaria consigo a tela que ele existe para demonstrar.
+Como um convite chega por e-mail, nenhum dos estados é alcançável pela navegação:
+chega-se a cada um pela URL. Os convites de demonstração vivem em
+`features/auth/data/invites.ts`, e as datas deles são relativas a hoje em vez de
+fixas — um convite "válido" com data gravada no código venceria sozinho e levaria
+consigo a tela que ele existe para demonstrar.
+
+| URL | Estado |
+| --- | --- |
+| `/convite/convite-valido` | convite em aberto |
+| `/convite/convite-expirado` | convite vencido |
+| `/convite/convite-usado` | conta do convite já criada |
+| `/convite/` + qualquer outro código | convite inexistente |
 
 ### Design
 

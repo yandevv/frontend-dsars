@@ -7,7 +7,6 @@ import BaseButton from '@/shared/ui/BaseButton.vue'
 import BaseCheckbox from '@/shared/ui/BaseCheckbox.vue'
 import BaseField from '@/shared/ui/BaseField.vue'
 import GoogleAuthButton from '@/shared/ui/GoogleAuthButton.vue'
-import DemoCredentialsNotice from '@/features/auth/components/DemoCredentialsNotice.vue'
 import { useLoginAttempts } from '@/features/auth/composables/useLoginAttempts'
 import {
   LOGIN_LOCKOUT_MINUTES,
@@ -169,11 +168,6 @@ async function correctEmail() {
   password.value = ''
   await nextTick()
   emailField.value?.focus()
-}
-
-function clearAttempts() {
-  reset()
-  failure.value = null
 }
 </script>
 
@@ -388,6 +382,4 @@ function clearAttempts() {
       <GoogleAuthButton label="Entrar com o Google" />
     </div>
   </form>
-
-  <DemoCredentialsNotice @reset="clearAttempts" />
 </template>

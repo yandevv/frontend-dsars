@@ -96,9 +96,12 @@ describe('Convite de encarregado', () => {
     cy.visit('/convite/isto-nao-existe')
 
     cy.get('h1', { timeout: 10_000 }).should('contain.text', 'Não encontramos este convite')
-    // O quadro não cita endereço nenhum: o portal não confirma quem foi convidado.
-    // (A lista "Só no protótipo" abaixo é andaime, e sai com o serviço falso.)
-    cy.get('h1').parent().should('not.contain.text', '@meridianosaude.org.br')
+    // Nenhum endereço de convidado aparece: o portal não confirma quem foi
+    // convidado. O contato da encarregada é outra coisa — é público, e está na
+    // página inicial.
+    cy.get('main').should('not.contain.text', 'bruno.carvalho@')
+    cy.get('main').should('not.contain.text', 'carla.menezes@')
+    cy.get('main').should('not.contain.text', 'helena.vasconcelos@')
     cy.contains('a', 'Crie uma conta comum').should('have.attr', 'href', '/registrar')
   })
 
