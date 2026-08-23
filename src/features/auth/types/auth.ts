@@ -20,6 +20,12 @@ export interface PasswordStrength {
   tone: 'danger' | 'warning' | 'brand' | 'idle'
 }
 
+/** O que a tela de acesso envia para autenticar. */
+export interface Credentials {
+  email: string
+  password: string
+}
+
 /** Dados que o cadastro envia para criar uma conta de titular. */
 export interface NewAccount {
   name: string

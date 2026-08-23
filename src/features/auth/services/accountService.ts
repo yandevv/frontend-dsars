@@ -1,4 +1,5 @@
 import { findDemoAccount, normalizeEmail } from '@/features/auth/data/accounts'
+import { delay } from '@/features/auth/services/fakeNetwork'
 import type { Account, NewAccount } from '@/features/auth/types/auth'
 
 /**
@@ -24,18 +25,6 @@ export class AccountError extends Error {
   }
 }
 
-/**
- * Espera curta que representa a ida ao servidor.
- *
- * Sem ela o estado "Criando conta…" apareceria e sumiria no mesmo quadro, e o
- * design trata esse estado como parte do fluxo: é o que impede dois envios.
- */
-const NETWORK_DELAY_MS = 900
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
 /** Endereços cadastrados nesta sessão, além dos de demonstração. */
 const createdEmails = new Set<string>()
 
@@ -46,7 +35,7 @@ const createdEmails = new Set<string>()
  * A conta nasce pendente de confirmação — é o RN005 que a libera.
  */
 export async function createAccount(input: NewAccount): Promise<Account> {
-  await delay(NETWORK_DELAY_MS)
+  await delay()
 
   const email = normalizeEmail(input.email)
   if (findDemoAccount(email) || createdEmails.has(email)) {
@@ -67,6 +56,6 @@ export async function createAccount(input: NewAccount): Promise<Account> {
 
 /** Reenvia o link de confirmação do RN005. */
 export async function resendConfirmation(email: string): Promise<void> {
-  await delay(NETWORK_DELAY_MS)
+  await delay()
   void email
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed, useId, useTemplateRef } from 'vue'
 
 /**
  * Campo de texto com rótulo, auxílio e erro — o formato usado em todos os
@@ -55,6 +55,14 @@ const inputClasses = computed(() => [
 function onInput(event: Event) {
   model.value = (event.target as HTMLInputElement).value
 }
+
+const input = useTemplateRef<HTMLInputElement>('input')
+
+/**
+ * Permite que a tela devolva o foco ao campo depois de um aviso — por exemplo
+ * quando o acesso pede para corrigir o endereço digitado.
+ */
+defineExpose({ focus: () => input.value?.focus() })
 </script>
 
 <template>
@@ -76,6 +84,7 @@ function onInput(event: Event) {
     -->
     <input
       :id="inputId"
+      ref="input"
       :type="type"
       :value="model"
       :disabled="disabled"

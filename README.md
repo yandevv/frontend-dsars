@@ -68,7 +68,13 @@ Enquanto isso, elas respondem a partir das contas de demonstração em
 `features/auth/data/accounts.ts`, que são as mesmas publicadas no protótipo do
 design. Existem para que os estados previstos nas regras de negócio (e-mail já
 cadastrado, conta pendente de confirmação, bloqueio por tentativas) possam ser
-percorridos e testados antes de haver API, e somem junto com o serviço falso.
+percorridos e testados antes de haver API, e somem junto com o serviço falso —
+inclusive o quadro "Só no protótipo" que as lista na tela de acesso.
+
+Uma ressalva que sobrevive ao back-end: a contagem de tentativas e o bloqueio do
+RN008 rodam no navegador **porque ainda não há servidor**. Proteção contra força
+bruta precisa morar no servidor; o que o cliente faz é apenas explicar o bloqueio
+a quem está na tela.
 
 ### Design
 
@@ -79,6 +85,7 @@ As telas vêm do projeto no Claude Design
 | --- | --- |
 | `/` | `Pagina Inicial Publica.dc.html` |
 | `/registrar` | `Registro de Conta.dc.html` |
+| `/entrar` | `Login.dc.html` |
 
 Os tokens de cor e tipografia foram extraídos desses arquivos para o bloco
 `@theme` de `src/assets/styles/main.css`.
