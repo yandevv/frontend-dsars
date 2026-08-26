@@ -7,6 +7,7 @@ import BaseButton from '@/shared/ui/BaseButton.vue'
 import BaseCheckbox from '@/shared/ui/BaseCheckbox.vue'
 import BaseField from '@/shared/ui/BaseField.vue'
 import GoogleAuthButton from '@/shared/ui/GoogleAuthButton.vue'
+import { startSession } from '@/features/auth/composables/useSession'
 import { useLoginAttempts } from '@/features/auth/composables/useLoginAttempts'
 import {
   LOGIN_LOCKOUT_MINUTES,
@@ -133,6 +134,7 @@ async function submit() {
   status.value = 'authenticating'
   try {
     account.value = await signIn({ email: email.value.trim(), password: password.value })
+    startSession(account.value)
     status.value = 'signed-in'
     reset()
   } catch (error) {

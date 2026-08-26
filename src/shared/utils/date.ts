@@ -20,3 +20,34 @@ export function formatDateTime(iso: string): string {
     minute: '2-digit',
   })
 }
+
+const DAY_MS = 86_400_000
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date)
+  copy.setHours(0, 0, 0, 0)
+  return copy
+}
+
+/** Texto ISO de uma data a `days` dias de hoje — negativo para o passado. */
+export function daysFromNow(days: number): string {
+  return new Date(Date.now() + days * DAY_MS).toISOString()
+}
+
+/** Mesma data, deslocada em dias corridos. */
+export function addDays(iso: string, days: number): string {
+  return new Date(new Date(iso).getTime() + days * DAY_MS).toISOString()
+}
+
+/**
+ * Dias corridos entre hoje e a data, contados por virada de calendário.
+ *
+ * Dividir a diferença em milissegundos erraria por um dia sempre que as duas
+ * pontas caíssem em horas diferentes — e prazo legal se conta em dias, não em
+ * períodos de 24 horas.
+ */
+export function daysUntil(iso: string, from: Date = new Date()): number {
+  return Math.round(
+    (startOfDay(new Date(iso)).getTime() - startOfDay(from).getTime()) / DAY_MS,
+  )
+}

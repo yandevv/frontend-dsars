@@ -49,6 +49,28 @@
   --color-brand-busy: #4a7f71; /* botão durante o envio */
   --color-ink-faint: #6b7873; /* critério ainda não atendido */
 
+  /* Superfícies e traços do painel — `Fila de Atendimento.dc.html` */
+  --color-surface-subtle: #fafbfa; /* linha encerrada, rodapé de tabela */
+  --color-line-soft: #e4e9e6; /* divisória entre linhas de uma lista longa */
+  --color-track-bar: #eef1ef; /* trilho das barras do relatório */
+  --color-skeleton: #e9ecea; /* blocos exibidos enquanto os dados não chegam */
+
+  /* Situação do prazo — `Fila de Atendimento.dc.html` */
+  --color-brand-line: #bcd4cb; /* borda da etiqueta "Em análise" */
+  --color-danger-line: #e2b3ac; /* borda do cartão de prazo vencido */
+  --color-due-soon: #b8730f; /* filete da linha que vence em poucos dias */
+  --color-due-soon-ink: #8a5709; /* o mesmo estado, em texto */
+  --color-due-soon-wash: #fdf7ef;
+  --color-pending: #7a4110; /* etiqueta "Aguardando complemento" */
+  --color-pending-line: #e8cdb4;
+  --color-pending-wash: #fdf5ef;
+  --color-pending-body: #5c3008;
+
+  /* Séries dos gráficos — `Relatorio Gerencial.dc.html` */
+  --color-chart-2: #3f8a74;
+  --color-chart-3: #7aa396;
+  --color-chart-4: #8e9b95;
+
   /* Tipografia */
   --font-sans: 'Public Sans', system-ui, sans-serif; /* corpo */
   --font-serif: 'Source Serif 4', Georgia, serif; /* títulos e números */
