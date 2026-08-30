@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed } from "vue";
+import { RouterLink } from "vue-router";
 
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { addDays, formatDate } from '@/shared/utils/date'
-import { useTenant } from '@/features/tenant/composables/useTenant'
-import type { DataSubjectRight } from '@/shared/types/lgpd'
+import { LEGAL_DEADLINE_DAYS } from "@/features/requests/constants/requestPolicy";
+import { addDays, formatDate } from "@/shared/utils/date";
+import { useTenant } from "@/features/tenant/composables/useTenant";
+import type { DataSubjectRight } from "@/shared/types/lgpd";
 
 /**
  * Coluna de apoio do formulário.
@@ -15,22 +15,24 @@ import type { DataSubjectRight } from '@/shared/types/lgpd'
  */
 const { right } = defineProps<{
   /** Ausente enquanto nenhum direito foi escolhido. */
-  right?: DataSubjectRight
-}>()
+  right?: DataSubjectRight;
+}>();
 
-const { tenant } = useTenant()
+const { tenant } = useTenant();
 
-const dueAt = computed(() => addDays(new Date().toISOString(), LEGAL_DEADLINE_DAYS))
+const dueAt = computed(() => addDays(new Date().toISOString(), LEGAL_DEADLINE_DAYS));
 
 const steps = [
-  'O sistema gera um protocolo e um identificador únicos e começa a contar o prazo.',
-  'Você recebe um aviso por e-mail e pode acompanhar o andamento na sua lista.',
-  'Se faltar alguma informação, a pessoa encarregada pede um complemento — o prazo continua correndo.',
-]
+  "O sistema gera um protocolo e um identificador únicos e começa a contar o prazo.",
+  "Você recebe um aviso por e-mail e pode acompanhar o andamento na sua lista.",
+  "Se faltar alguma informação, a pessoa encarregada pede um complemento.",
+];
 </script>
 
 <template>
-  <aside class="flex flex-col gap-[22px] border border-line bg-surface-muted px-[26px] pb-[30px] pt-[26px]">
+  <aside
+    class="flex flex-col gap-[22px] border border-line bg-surface-muted px-[26px] pb-[30px] pt-[26px]"
+  >
     <section class="flex flex-col gap-2.5">
       <h2 class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft">
         Prazo desta requisição
@@ -78,7 +80,7 @@ const steps = [
           class="flex gap-3"
         >
           <span class="min-w-[22px] font-label text-[13px] font-bold text-brand">
-            {{ String(index + 1).padStart(2, '0') }}
+            {{ String(index + 1).padStart(2, "0") }}
           </span>
           <span class="text-[15px] leading-relaxed text-ink-body">{{ step }}</span>
         </li>

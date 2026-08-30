@@ -22,7 +22,7 @@ describe('Nova requisição', () => {
   it('oferece os nove direitos do art. 18 e só um por requisição', () => {
     cy.get('input[type="radio"]').should('have.length', 9)
     cy.contains('Eliminação de dados').should('be.visible')
-    cy.contains('art. 18, IX').should('be.visible')
+    cy.contains('Revogação do consentimento').should('be.visible')
 
     cy.get('input[type="radio"]').eq(1).check()
     cy.get('input[type="radio"]').eq(5).check()

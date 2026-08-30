@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useId } from 'vue'
 
-import { LGPD_RIGHTS, legalReferenceFor } from '@/shared/constants/lgpdRights'
+import { LGPD_RIGHTS } from '@/shared/constants/lgpdRights'
 
 /**
  * Escolha do direito exercido, um por requisição.
@@ -9,6 +9,11 @@ import { LGPD_RIGHTS, legalReferenceFor } from '@/shared/constants/lgpdRights'
  * É um `radiogroup` de verdade, e não uma lista de cartões clicáveis: pedidos
  * diferentes têm prazos e desfechos diferentes, e o teclado precisa poder
  * percorrer as nove opções como percorre qualquer grupo de rádio.
+ *
+ * O inciso não aparece ao lado de cada nome: a explicação sob o título já diz
+ * que a lista é a do art. 18, e quem escolhe um direito escolhe pelo que ele
+ * faz, não pelo número. O inciso volta depois do envio, no comprovante e na
+ * requisição, onde serve para citar o pedido.
  */
 const { invalid = false } = defineProps<{
   /** Envio tentado sem escolha: o grupo inteiro passa a chamar atenção. */
@@ -31,8 +36,8 @@ const groupName = useId()
         >*</span>
       </span>
       <span class="text-sm leading-normal text-ink-muted">
-        Os direitos abaixo são os do art. 18 da LGPD. Em caso de dúvida, escolha o mais
-        próximo — a pessoa encarregada pode reclassificar e avisar você.
+        Os direitos abaixo são os do art. 18 da LGPD. Em caso de dúvida, escolha o mais próximo (a
+        pessoa encarregada poderá reclassificar e avisar você).
       </span>
     </legend>
 
@@ -56,14 +61,7 @@ const groupName = useId()
         class="mt-0.5 size-5 accent-brand"
       >
       <span class="flex flex-col gap-1">
-        <span class="flex flex-wrap items-baseline gap-2.5">
-          <span class="text-base font-semibold text-ink">{{ right.requestLabel }}</span>
-          <span
-            class="font-label text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft"
-          >
-            {{ legalReferenceFor(right.numeral) }}
-          </span>
-        </span>
+        <span class="text-base font-semibold text-ink">{{ right.requestLabel }}</span>
         <span class="text-[15px] leading-normal text-ink-soft">{{ right.requestSummary }}</span>
       </span>
     </label>
