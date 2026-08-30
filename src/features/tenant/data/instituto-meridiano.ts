@@ -23,5 +23,4 @@ export const institutoMeridiano: Readonly<Tenant> = Object.freeze({
     phone: '(16) 3711-0480',
     officeHours: 'dias úteis, 9h às 17h',
   }),
-  showLegalReferences: true,
 })

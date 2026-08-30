@@ -20,7 +20,7 @@ const { tenant } = useTenant();
     >
       <LandingHero :tenant="tenant" />
       <ResponseDeadlines />
-      <DataSubjectRights :show-legal-reference="tenant.showLegalReferences" />
+      <DataSubjectRights />
       <RequestFlowSteps />
     </main>
 

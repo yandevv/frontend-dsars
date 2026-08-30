@@ -29,9 +29,4 @@ export interface Tenant {
   registrationId: string
   address: string
   dpo: DataProtectionOfficer
-  /**
-   * Exibe referências à legislação (ex.: "art. 18 da LGPD") junto às seções.
-   * Corresponde ao `mostrarReferenciasLegais` do design.
-   */
-  showLegalReferences: boolean
 }

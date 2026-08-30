@@ -18,7 +18,6 @@ describe('Página inicial pública', () => {
         cy.get('ol[role="list"] > li').should('have.length', 9)
         cy.get('ol > li').first().should('contain', 'Confirmação de tratamento')
         cy.get('ol > li').last().should('contain', 'Revogação do consentimento')
-        cy.contains('art. 18 da LGPD').should('be.visible')
       })
   })
 

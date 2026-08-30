@@ -3,8 +3,8 @@ import { mount } from '@vue/test-utils'
 
 import DataSubjectRights from '../DataSubjectRights.vue'
 
-function render(showLegalReference = true) {
-  return mount(DataSubjectRights, { props: { showLegalReference } })
+function render() {
+  return mount(DataSubjectRights)
 }
 
 describe('DataSubjectRights', () => {
@@ -39,13 +39,5 @@ describe('DataSubjectRights', () => {
     // O reset do Tailwind remove o marcador, e sem role o Safari deixa de
     // anunciar a semântica de lista.
     expect(list.attributes('role')).toBe('list')
-  })
-
-  it('mostra a referência legal quando o tenant pede', () => {
-    expect(render(true).text()).toContain('art. 18 da LGPD')
-  })
-
-  it('esconde a referência legal quando o tenant não pede', () => {
-    expect(render(false).text()).not.toContain('art. 18 da LGPD')
   })
 })

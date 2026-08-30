@@ -82,9 +82,6 @@ export const LGPD_RIGHTS: readonly DataSubjectRight[] = [
   },
 ]
 
-/** Referência legal exibida quando o tenant opta por mostrá-la. */
-export const LGPD_RIGHTS_LEGAL_REFERENCE = 'art. 18 da LGPD'
-
 /** Referência do inciso, como o design a exibe numa requisição: "art. 18, VI". */
 export function legalReferenceFor(numeral: string): string {
   return `art. 18, ${numeral}`

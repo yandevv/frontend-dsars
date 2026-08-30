@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import { LGPD_RIGHTS, LGPD_RIGHTS_LEGAL_REFERENCE } from '@/shared/constants/lgpdRights'
-
-defineProps<{
-  /** Corresponde ao `mostrarReferenciasLegais` do design. */
-  showLegalReference: boolean
-}>()
+import { LGPD_RIGHTS } from '@/shared/constants/lgpdRights'
 </script>
 
 <template>
@@ -12,20 +7,12 @@ defineProps<{
     aria-labelledby="titulo-direitos"
     class="flex flex-col gap-4 border-b border-line px-5 py-[26px] md:px-14 md:gap-7 md:py-[52px]"
   >
-    <div class="flex flex-wrap items-baseline gap-x-3.5 gap-y-1">
-      <h2
-        id="titulo-direitos"
-        class="font-serif text-[23px] font-semibold text-ink md:text-[30px]"
-      >
-        O que você pode pedir
-      </h2>
-      <p
-        v-if="showLegalReference"
-        class="font-label text-xs text-ink-muted"
-      >
-        {{ LGPD_RIGHTS_LEGAL_REFERENCE }}
-      </p>
-    </div>
+    <h2
+      id="titulo-direitos"
+      class="font-serif text-[23px] font-semibold text-ink md:text-[30px]"
+    >
+      O que você pode pedir
+    </h2>
 
     <!--
       O fundo cinza aparece pelos vãos de 1px do grid: é assim que o design

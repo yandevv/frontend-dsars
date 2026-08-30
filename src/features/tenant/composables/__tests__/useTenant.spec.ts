@@ -12,12 +12,6 @@ describe('useTenant', () => {
     expect(tenant.dpo.email).toBe('dpo@meridianosaude.org.br')
   })
 
-  it('mostra referências legais por padrão, como no design', () => {
-    const { tenant } = useTenant()
-
-    expect(tenant.showLegalReferences).toBe(true)
-  })
-
   it('entrega configuração imutável, incluindo os dados aninhados', () => {
     const { tenant } = useTenant()
 
