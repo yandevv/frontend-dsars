@@ -4,16 +4,11 @@ import { computed, useId } from 'vue'
 /**
  * Caixa de seleção com rótulo rico (o aceite dos termos carrega links).
  *
- * `boxed` reproduz a variante emoldurada do design, usada quando a opção tem
- * uma explicação abaixo do rótulo e precisa se destacar do resto do formulário.
+ * Em repouso é só a caixa e o rótulo; a moldura aparece apenas quando há erro,
+ * que é quando a opção precisa se destacar do resto do formulário.
  */
-const {
-  boxed = false,
-  error,
-  disabled = false,
-} = defineProps<{
-  boxed?: boolean
-  /** Mensagem de erro exibida abaixo do rótulo; também marca a moldura. */
+const { error, disabled = false } = defineProps<{
+  /** Mensagem de erro exibida abaixo do rótulo; também desenha a moldura. */
   error?: string
   disabled?: boolean
 }>()
@@ -25,12 +20,7 @@ const errorId = `${inputId}-erro`
 
 const wrapperClasses = computed(() => [
   'flex items-start gap-3',
-  boxed || error ? 'px-4 py-3.5' : 'py-1',
-  error
-    ? 'border-2 border-danger bg-danger-wash'
-    : boxed
-      ? 'border border-line bg-surface-muted'
-      : '',
+  error ? 'border-2 border-danger bg-danger-wash px-4 py-3.5' : 'py-1',
   disabled ? 'opacity-55' : 'cursor-pointer',
 ])
 </script>

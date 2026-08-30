@@ -103,6 +103,6 @@ describe('Acesso à conta', () => {
 
     cy.contains('Instituto Meridiano').should('be.visible')
     cy.contains('Atendimento a requisições de titulares de dados').should('not.be.visible')
-    cy.contains('Para onde você vai depois de entrar').should('exist')
+    cy.contains('Não consegue entrar').should('exist')
   })
 })

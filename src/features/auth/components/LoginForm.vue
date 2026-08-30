@@ -79,12 +79,6 @@ const attemptsCounter = computed(() =>
     : '',
 )
 
-const keepSignedInText = computed(() =>
-  keepSignedIn.value
-    ? `Esta sessão vale ${SESSION_PERSISTENT_DAYS} dias neste aparelho, mesmo se você fechar o navegador. Evite em computador compartilhado.`
-    : `Sem marcar, a sessão encerra após ${SESSION_IDLE_MINUTES} minutos sem uso. Marcando, ela passa a valer ${SESSION_PERSISTENT_DAYS} dias neste aparelho.`,
-)
-
 const submitLabel = computed(() => {
   if (isBusy.value) return 'Entrando…'
   if (isLocked.value) return 'Acesso bloqueado'
@@ -342,11 +336,9 @@ async function correctEmail() {
 
       <BaseCheckbox
         v-model="keepSignedIn"
-        boxed
         :disabled="fieldsLocked"
       >
-        <span class="text-[15px] font-semibold text-ink">Manter-me conectado</span>
-        <span class="text-sm leading-normal text-ink-soft">{{ keepSignedInText }}</span>
+        <span class="text-[15px] text-ink">Manter-me conectado</span>
       </BaseCheckbox>
 
       <div class="flex flex-col gap-3 pt-0.5">
