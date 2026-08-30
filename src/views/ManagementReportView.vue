@@ -188,7 +188,6 @@ function exportReport(format: ExportFormat) {
         <div class="grid gap-6 lg:grid-cols-2">
           <ReportBarChart
             title="Total por direito exercido"
-            note="art. 18, LGPD"
             :bars="report.byRight.value"
           />
           <ReportBarChart

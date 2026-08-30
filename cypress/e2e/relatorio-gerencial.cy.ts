@@ -28,7 +28,6 @@ describe('Relatório gerencial', () => {
 
   it('compõe os totais por direito e por estado', () => {
     cy.contains('Total por direito exercido').should('be.visible')
-    cy.contains('art. 18, LGPD').should('be.visible')
     cy.contains('Total por estado').should('be.visible')
     cy.contains('concluídas fora do prazo legal').should('be.visible')
   })

@@ -11,7 +11,8 @@ import type { ReportBar } from '@/features/reports/types/report'
  */
 defineProps<{
   title: string
-  note: string
+  /** Linha de contexto à direita do título; nem todo gráfico precisa de uma. */
+  note?: string
   bars: readonly ReportBar[]
 }>()
 </script>
@@ -24,7 +25,10 @@ defineProps<{
       <h2 class="font-serif text-xl font-semibold text-ink">
         {{ title }}
       </h2>
-      <p class="text-[13px] text-ink-muted">
+      <p
+        v-if="note"
+        class="text-[13px] text-ink-muted"
+      >
         {{ note }}
       </p>
     </div>
