@@ -19,6 +19,10 @@ describe('Relatório gerencial', () => {
     cy.contains('últimos 90 dias').should('be.visible')
   })
 
+  it('não expõe os códigos do documento de requisitos na tela', () => {
+    cy.get('main').invoke('text').should('not.match', /\bRF\d{3}\b/)
+  })
+
   it('não mostra nada que identifique um titular', () => {
     cy.get('main').should('not.contain.text', 'Marina Torres')
     cy.get('main').should('not.contain.text', '@exemplo.com.br')

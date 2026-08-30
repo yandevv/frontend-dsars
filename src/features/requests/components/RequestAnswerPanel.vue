@@ -109,7 +109,7 @@ async function submit() {
 
 <template>
   <BasePanel
-    eyebrow="Finalizar atendimento · RF013"
+    eyebrow="Finalizar atendimento"
     title="Resposta ao titular"
     tone="brand"
   >
@@ -251,7 +251,7 @@ async function submit() {
               Confirmo que esta resposta encerra o atendimento
             </span>
             <span class="text-sm leading-normal text-ink-soft">
-              O titular é notificado na hora (RF007) e a contagem do prazo para. Correções
+              O titular é notificado na hora e a contagem do prazo para. Correções
               posteriores só por nova requisição.
             </span>
           </span>

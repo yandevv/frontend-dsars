@@ -39,7 +39,7 @@ defineProps<{ answer: RequestAnswer }>()
 
       <p class="text-sm leading-relaxed text-ink-soft">
         O titular recebeu notificação no portal e por e-mail, e a pesquisa de satisfação desta
-        requisição foi liberada (RF011).
+        requisição foi liberada.
       </p>
     </div>
   </BasePanel>

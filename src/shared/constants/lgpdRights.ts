@@ -82,11 +82,6 @@ export const LGPD_RIGHTS: readonly DataSubjectRight[] = [
   },
 ]
 
-/** Referência do inciso, como o design a exibe numa requisição: "art. 18, VI". */
-export function legalReferenceFor(numeral: string): string {
-  return `art. 18, ${numeral}`
-}
-
 export function findRight(numeral: string): DataSubjectRight | undefined {
   return LGPD_RIGHTS.find((right) => right.numeral === numeral)
 }

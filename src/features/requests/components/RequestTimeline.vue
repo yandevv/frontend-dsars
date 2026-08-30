@@ -16,7 +16,7 @@ defineEmits<{ export: [] }>()
 </script>
 
 <template>
-  <BasePanel eyebrow="Histórico e auditoria · RF006 / RF013">
+  <BasePanel eyebrow="Histórico e auditoria">
     <template #action>
       <button
         type="button"

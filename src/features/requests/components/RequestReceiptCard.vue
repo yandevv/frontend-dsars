@@ -3,7 +3,7 @@ import { computed } from 'vue'
 
 import BaseButton from '@/shared/ui/BaseButton.vue'
 import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { findRight, legalReferenceFor } from '@/shared/constants/lgpdRights'
+import { findRight } from '@/shared/constants/lgpdRights'
 import { formatDate, formatDateTime } from '@/shared/utils/date'
 import type { RequestReceipt } from '@/features/requests/types/request'
 
@@ -86,9 +86,6 @@ const attachmentSummary = computed(() => {
           </dt>
           <dd class="text-base font-semibold text-ink">
             {{ right?.requestLabel }}
-          </dd>
-          <dd class="text-sm text-ink-soft">
-            {{ legalReferenceFor(receipt.rightNumeral) }}
           </dd>
         </div>
         <div class="flex flex-col gap-1 px-6 py-5">

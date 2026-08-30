@@ -389,7 +389,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         at: moment(-25, '19:08'),
         title: 'Requisição cancelada pelo titular',
         detail:
-          'Cancelada pelo portal, sem resposta da organização. Cancelar é ato exclusivo do titular (RF010).',
+          'Cancelada pelo portal, sem resposta da organização. Cancelar é ato exclusivo do titular.',
         author: 'Titular',
       },
       {

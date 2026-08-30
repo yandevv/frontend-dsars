@@ -289,7 +289,7 @@ async function reassign(to: string) {
                 em aberto.
               </p>
               <p class="text-sm leading-relaxed text-ink-soft">
-                O encarregado não cancela nem apaga requisições: cancelar é ato do titular (RF010).
+                O encarregado não cancela nem apaga requisições: cancelar é ato do titular.
               </p>
             </section>
 

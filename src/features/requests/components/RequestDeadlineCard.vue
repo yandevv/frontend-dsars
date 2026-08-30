@@ -62,7 +62,7 @@ const detail = computed(() => {
     :class="cardClasses"
   >
     <h2 class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft">
-      Prazo legal · RF014
+      Prazo legal
     </h2>
     <p
       class="font-label text-[26px] font-bold leading-tight"

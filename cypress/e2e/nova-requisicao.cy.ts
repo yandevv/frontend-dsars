@@ -19,6 +19,10 @@ describe('Nova requisição', () => {
     cy.get('footer').should('contain.text', 'Portal operado com a plataforma Tutela')
   })
 
+  it('não expõe os códigos do documento de requisitos na tela', () => {
+    cy.get('main').invoke('text').should('not.match', /\bRF\d{3}\b/)
+  })
+
   it('oferece os nove direitos do art. 18 e só um por requisição', () => {
     cy.get('input[type="radio"]').should('have.length', 9)
     cy.contains('Eliminação de dados').should('be.visible')

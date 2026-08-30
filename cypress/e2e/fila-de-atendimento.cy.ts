@@ -21,6 +21,10 @@ describe('Fila de atendimento', () => {
     cy.contains('Vencem em até 3 dias').should('be.visible')
   })
 
+  it('não expõe os códigos do documento de requisitos na tela', () => {
+    cy.get('main').invoke('text').should('not.match', /\bRF\d{3}\b/)
+  })
+
   it('põe as vencidas no topo e mostra o prazo relativo junto da data', () => {
     cy.get('tbody tr').first().should('contain.text', '2026-000418')
     cy.get('tbody tr').first().should('contain.text', 'Venceu há 2 dias')
