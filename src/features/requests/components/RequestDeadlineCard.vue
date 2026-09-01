@@ -74,8 +74,8 @@ const detail = computed(() => {
       {{ detail }}
     </p>
     <p class="text-sm leading-normal text-ink-soft">
-      {{ LEGAL_DEADLINE_DAYS }} dias contados do registro, conforme o art. 19 da LGPD. Atrasos
-      entram no relatório trimestral à diretoria.
+      {{ LEGAL_DEADLINE_DAYS }} dias contados do registro, como determina a LGPD. Atrasos entram
+      no relatório trimestral à diretoria.
     </p>
   </section>
 </template>

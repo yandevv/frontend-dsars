@@ -1,32 +1,33 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, nextTick, ref, useTemplateRef, watch } from "vue";
+import { useRoute } from "vue-router";
 
-import AppBreadcrumb from '@/shared/layout/AppBreadcrumb.vue'
-import AppShell from '@/shared/layout/AppShell.vue'
-import BaseButton from '@/shared/ui/BaseButton.vue'
-import RequestAnswerPanel from '@/features/requests/components/RequestAnswerPanel.vue'
-import RequestAssigneeCard from '@/features/requests/components/RequestAssigneeCard.vue'
-import RequestDeadlineCard from '@/features/requests/components/RequestDeadlineCard.vue'
-import RequestInternalNotes from '@/features/requests/components/RequestInternalNotes.vue'
-import RequestSentAnswer from '@/features/requests/components/RequestSentAnswer.vue'
-import RequestStatusChip from '@/features/requests/components/RequestStatusChip.vue'
-import RequestSubjectCard from '@/features/requests/components/RequestSubjectCard.vue'
-import RequestSubjectRequest from '@/features/requests/components/RequestSubjectRequest.vue'
-import RequestTimeline from '@/features/requests/components/RequestTimeline.vue'
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { deadlineStatusOf } from '@/features/requests/utils/deadline'
-import { findRight } from '@/shared/constants/lgpdRights'
-import { formatDate } from '@/shared/utils/date'
-import { isOpen } from '@/features/requests/constants/requestStatus'
+import AppBreadcrumb from "@/shared/layout/AppBreadcrumb.vue";
+import AppShell from "@/shared/layout/AppShell.vue";
+import BaseButton from "@/shared/ui/BaseButton.vue";
+import RequestAnswerPanel from "@/features/requests/components/RequestAnswerPanel.vue";
+import RequestAssigneeCard from "@/features/requests/components/RequestAssigneeCard.vue";
+import RequestDeadlineCard from "@/features/requests/components/RequestDeadlineCard.vue";
+import RequestInternalNotes from "@/features/requests/components/RequestInternalNotes.vue";
+import RequestSentAnswer from "@/features/requests/components/RequestSentAnswer.vue";
+import RequestStatusChip from "@/features/requests/components/RequestStatusChip.vue";
+import RequestSubjectCard from "@/features/requests/components/RequestSubjectCard.vue";
+import RequestSubjectRequest from "@/features/requests/components/RequestSubjectRequest.vue";
+import RequestTimeline from "@/features/requests/components/RequestTimeline.vue";
+import { LEGAL_DEADLINE_DAYS } from "@/features/requests/constants/requestPolicy";
+import { deadlineLabel, deadlineStatusOf } from "@/features/requests/utils/deadline";
+import { DEADLINE_TEXT_CLASSES } from "@/features/requests/constants/deadlineStyles";
+import { findRight } from "@/shared/constants/lgpdRights";
+import { formatDate } from "@/shared/utils/date";
+import { isOpen } from "@/features/requests/constants/requestStatus";
 import {
   answerRequest,
   askForComplement,
   fetchRequest,
   listRequests,
   reassignRequest,
-} from '@/features/requests/services/requestService'
-import type { DataRequest, RequestOutcome } from '@/features/requests/types/request'
+} from "@/features/requests/services/requestService";
+import type { DataRequest, RequestOutcome } from "@/features/requests/types/request";
 
 /**
  * Turno 1 · Tela 11 — Detalhe da requisição na visão do encarregado
@@ -37,115 +38,139 @@ import type { DataRequest, RequestOutcome } from '@/features/requests/types/requ
  * requisição — o que existe é responder, pedir complemento e reatribuir, tudo
  * com registro na trilha.
  */
-const route = useRoute()
+const route = useRoute();
 
-const request = ref<DataRequest | null>(null)
-const others = ref<readonly DataRequest[]>([])
-const loading = ref(true)
-const missing = ref(false)
-const panelOpen = ref(false)
-const sending = ref(false)
+const request = ref<DataRequest | null>(null);
+const others = ref<readonly DataRequest[]>([]);
+const loading = ref(true);
+const missing = ref(false);
+const panelOpen = ref(false);
+const sending = ref(false);
 
-type Notice = { title: string; text: string; tone: 'danger' | 'ok' }
-const notice = ref<Notice | null>(null)
-const dismissed = ref(false)
+type Notice = { title: string; text: string; tone: "danger" | "ok" };
+const notice = ref<Notice | null>(null);
+const dismissed = ref(false);
 
-const open = computed(() => (request.value ? isOpen(request.value.status) : false))
+const open = computed(() => (request.value ? isOpen(request.value.status) : false));
+
+// No celular a finalização cobre a tela inteira; o foco vai para ela ao abrir
+// para que o leitor de tela não fique preso no botão que sumiu atrás.
+const answerSheet = useTemplateRef<HTMLElement>("answerSheet");
+
+async function openPanel() {
+  panelOpen.value = true;
+  await nextTick();
+  answerSheet.value?.focus();
+}
 
 const overdueNotice = computed<Notice | null>(() => {
-  const current = request.value
-  if (!current || !open.value || deadlineStatusOf(current) !== 'vencida') return null
+  const current = request.value;
+  if (!current || !open.value || deadlineStatusOf(current) !== "vencida") return null;
 
   return {
-    title: 'Requisição fora do prazo legal',
+    title: "Requisição fora do prazo legal",
     text: `O prazo de ${LEGAL_DEADLINE_DAYS} dias venceu em ${formatDate(current.dueAt)}. Finalize o atendimento hoje e registre a causa do atraso na nota interna — o relatório à diretoria usa esse campo.`,
-    tone: 'danger',
-  }
-})
+    tone: "danger",
+  };
+});
 
-const shownNotice = computed(() => notice.value ?? (dismissed.value ? null : overdueNotice.value))
+const shownNotice = computed(() => notice.value ?? (dismissed.value ? null : overdueNotice.value));
 
 const rightLabel = computed(() =>
-  request.value ? (findRight(request.value.rightNumeral)?.requestLabel ?? '') : '',
-)
+  request.value ? (findRight(request.value.rightNumeral)?.requestLabel ?? "") : "",
+);
+
+/** O prazo relativo que o cabeçalho do celular mostra ao lado do estado. */
+const deadlineShort = computed(() => {
+  const current = request.value;
+  if (!current || !open.value) return null;
+  return {
+    label: deadlineLabel(current),
+    classes: DEADLINE_TEXT_CLASSES[deadlineStatusOf(current)],
+  };
+});
 
 const meta = computed(() => {
-  const current = request.value
-  if (!current) return ''
-  return `Protocolo ${current.protocol} · registrada em ${formatDate(current.registeredAt)} · titular ${current.subject.name}`
-})
+  const current = request.value;
+  if (!current) return "";
+  return `Protocolo ${current.protocol} · registrada em ${formatDate(current.registeredAt)} · titular ${current.subject.name}`;
+});
 
 async function load(protocol: string) {
-  loading.value = true
-  missing.value = false
-  notice.value = null
-  dismissed.value = false
-  panelOpen.value = false
+  loading.value = true;
+  missing.value = false;
+  notice.value = null;
+  dismissed.value = false;
+  panelOpen.value = false;
 
   try {
-    const found = await fetchRequest(protocol)
-    request.value = found
+    const found = await fetchRequest(protocol);
+    request.value = found;
     others.value = (await listRequests()).filter(
       (item) => item.protocol !== found.protocol && item.subject.email === found.subject.email,
-    )
+    );
   } catch {
-    request.value = null
-    missing.value = true
+    request.value = null;
+    missing.value = true;
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
-watch(() => route.params.protocol, (protocol) => {
-  if (typeof protocol === 'string') void load(protocol)
-}, { immediate: true })
+watch(
+  () => route.params.protocol,
+  (protocol) => {
+    if (typeof protocol === "string") void load(protocol);
+  },
+  { immediate: true },
+);
 
 async function finish(answer: { outcome: RequestOutcome; text: string; legalBasis?: string }) {
-  const current = request.value
-  if (!current || sending.value) return
+  const current = request.value;
+  if (!current || sending.value) return;
 
-  sending.value = true
+  sending.value = true;
   try {
-    request.value = { ...(await answerRequest(current.protocol, answer)) }
-    panelOpen.value = false
+    request.value = { ...(await answerRequest(current.protocol, answer)) };
+    panelOpen.value = false;
     notice.value = {
-      title: 'Atendimento finalizado',
-      text: 'O titular foi notificado no portal e por e-mail. A requisição saiu da fila e a pesquisa de satisfação está liberada.',
-      tone: 'ok',
-    }
+      title: "Atendimento finalizado",
+      text: "O titular foi notificado no portal e por e-mail. A requisição saiu da fila e a pesquisa de satisfação está liberada.",
+      tone: "ok",
+    };
   } finally {
-    sending.value = false
+    sending.value = false;
   }
 }
 
 async function requestComplement() {
-  const current = request.value
-  if (!current) return
+  const current = request.value;
+  if (!current) return;
 
   request.value = {
     ...(await askForComplement(current.protocol, {
       detail:
-        'Pedido enviado pelo portal e por e-mail. O prazo legal continua correndo enquanto se espera a resposta.',
+        "Pedido enviado pelo portal e por e-mail. O prazo legal continua correndo enquanto se espera a resposta.",
     })),
-  }
-  panelOpen.value = false
+  };
+  panelOpen.value = false;
   notice.value = {
-    title: 'Complemento solicitado ao titular',
-    text: 'A requisição continua na fila e o prazo legal segue correndo. Finalizar atendimento permanece disponível.',
-    tone: 'ok',
-  }
+    title: "Complemento solicitado ao titular",
+    text: "A requisição continua na fila e o prazo legal segue correndo. Finalizar atendimento permanece disponível.",
+    tone: "ok",
+  };
 }
 
 async function reassign(to: string) {
-  const current = request.value
-  if (!current) return
+  const current = request.value;
+  if (!current) return;
 
-  request.value = { ...(await reassignRequest(current.protocol, { to })) }
+  request.value = { ...(await reassignRequest(current.protocol, { to })) };
   notice.value = {
-    title: 'Requisição reatribuída',
+    title: "Requisição reatribuída",
     text: `${to} recebeu a notificação com o prazo restante. A troca ficou registrada na trilha de auditoria.`,
-    tone: 'ok',
-  }
+    tone: "ok",
+  };
 }
 </script>
 
@@ -157,18 +182,9 @@ async function reassign(to: string) {
         :current="String(route.params.protocol)"
       />
 
-      <p
-        v-if="loading"
-        role="status"
-        class="text-[15px] text-ink-soft"
-      >
-        Abrindo a requisição…
-      </p>
+      <p v-if="loading" role="status" class="text-[15px] text-ink-soft">Abrindo a requisição…</p>
 
-      <div
-        v-else-if="missing || !request"
-        class="flex max-w-[60ch] flex-col gap-3.5"
-      >
+      <div v-else-if="missing || !request" class="flex max-w-[60ch] flex-col gap-3.5">
         <h1 class="font-serif text-[28px] font-semibold text-ink">
           Não encontramos a requisição {{ route.params.protocol }}
         </h1>
@@ -177,37 +193,36 @@ async function reassign(to: string) {
           organização. A fila mostra tudo o que está sob o escopo deste portal.
         </p>
         <div class="pt-1">
-          <BaseButton :to="{ name: 'request-queue' }">
-            Voltar à fila
-          </BaseButton>
+          <BaseButton :to="{ name: 'request-queue' }"> Voltar à fila </BaseButton>
         </div>
       </div>
 
       <template v-else>
         <div class="flex flex-wrap items-start justify-between gap-8">
           <div class="flex flex-col gap-2.5">
-            <h1 class="font-serif text-[32px] font-semibold leading-[1.15] text-ink">
+            <h1 class="font-serif text-[20px] font-semibold leading-[1.15] text-ink sm:text-[32px]">
               {{ rightLabel }}
             </h1>
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
               <RequestStatusChip :status="request.status" />
-              <p class="text-[15px] text-ink-soft">
+              <p v-if="deadlineShort" class="text-[13px] sm:hidden" :class="deadlineShort.classes">
+                {{ deadlineShort.label }}
+              </p>
+              <p class="hidden text-[15px] text-ink-soft sm:block">
                 {{ meta }}
               </p>
             </div>
           </div>
 
+          <!-- No celular as ações vão empilhadas e com a principal primeiro. -->
           <div
             v-if="open"
-            class="flex flex-wrap items-center gap-2.5"
+            class="flex w-full flex-col-reverse gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center"
           >
-            <BaseButton
-              variant="secondary"
-              @click="requestComplement"
-            >
+            <BaseButton variant="secondary" block class="sm:w-auto" @click="requestComplement">
               Pedir complemento
             </BaseButton>
-            <BaseButton @click="panelOpen = true">
+            <BaseButton block class="sm:w-auto" @click="openPanel">
               Finalizar atendimento
             </BaseButton>
           </div>
@@ -234,7 +249,10 @@ async function reassign(to: string) {
           <button
             type="button"
             class="py-1 text-sm text-brand underline hover:text-brand-strong"
-            @click="notice = null; dismissed = true"
+            @click="
+              notice = null;
+              dismissed = true;
+            "
           >
             Entendi
           </button>
@@ -244,17 +262,29 @@ async function reassign(to: string) {
           <div class="flex flex-col gap-6">
             <RequestSubjectRequest :request="request" />
 
-            <RequestAnswerPanel
+            <div
               v-if="panelOpen && open"
-              :sending="sending"
-              @close="panelOpen = false"
-              @submit="finish"
-            />
+              ref="answerSheet"
+              tabindex="-1"
+              class="outline-none max-md:fixed max-md:inset-0 max-md:z-40 max-md:overflow-y-auto max-md:bg-surface"
+              @keydown.esc="panelOpen = false"
+            >
+              <div
+                class="sticky top-0 z-10 flex flex-col gap-1 border-b border-line bg-surface-muted px-5 py-3.5 md:hidden"
+              >
+                <p
+                  class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft"
+                >
+                  Pedido do titular · {{ request.protocol }}
+                </p>
+                <p class="line-clamp-3 text-sm leading-normal text-ink-body">
+                  {{ request.description }}
+                </p>
+              </div>
+              <RequestAnswerPanel :sending="sending" @close="panelOpen = false" @submit="finish" />
+            </div>
 
-            <RequestSentAnswer
-              v-if="request.answer"
-              :answer="request.answer"
-            />
+            <RequestSentAnswer v-if="request.answer" :answer="request.answer" />
 
             <RequestTimeline :entries="request.timeline" />
 
@@ -264,10 +294,7 @@ async function reassign(to: string) {
           <div class="flex flex-col gap-[18px]">
             <RequestDeadlineCard :request="request" />
 
-            <RequestSubjectCard
-              :subject="request.subject"
-              :others="others"
-            />
+            <RequestSubjectCard :subject="request.subject" :others="others" />
 
             <RequestAssigneeCard
               :assignee="request.assignee"
