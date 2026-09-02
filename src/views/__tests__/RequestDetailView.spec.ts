@@ -11,7 +11,7 @@ const open = DEMO_REQUESTS.find((item) => item.status === 'em-analise')!
 
 vi.mock('vue-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('vue-router')>()),
-  useRoute: () => ({ params: { protocol: open.protocol } }),
+  useRoute: () => ({ params: { id: open.id } }),
   useRouter: () => ({ push: vi.fn<() => void>() }),
 }))
 

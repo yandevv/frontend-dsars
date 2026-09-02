@@ -58,7 +58,7 @@ defineProps<{
         <RouterLink
           v-for="other in others"
           :key="other.protocol"
-          :to="{ name: 'request-detail', params: { protocol: other.protocol } }"
+          :to="{ name: 'request-detail', params: { id: other.id } }"
           class="text-[15px] font-medium text-brand no-underline hover:text-brand-strong"
         >
           {{ other.protocol }} · {{ findRight(other.rightNumeral)?.requestLabel }} ·

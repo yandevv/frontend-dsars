@@ -82,7 +82,7 @@ describe('Fila de atendimento', () => {
   it('leva ao atendimento de uma requisição', () => {
     cy.get('tbody tr').first().contains('a', 'Acessar').click()
 
-    cy.location('pathname').should('eq', '/painel/requisicoes/2026-000418')
+    cy.location('pathname').should('eq', '/painel/requisicoes/01a01f0a-da00-7d89-9fae-9ed1e70505ae')
   })
 
   it('troca a tabela por cartões em tela estreita', () => {

@@ -32,10 +32,10 @@ const selected = ref<string[]>([])
 // Mudou o recorte, a seleção deixou de fazer sentido: as linhas marcadas podem
 // nem estar mais na tela.
 watch(
-  () => queue.sorted.value.map((request) => request.protocol).join(),
+  () => queue.sorted.value.map((request) => request.id).join(),
   () => {
-    selected.value = selected.value.filter((protocol) =>
-      queue.sorted.value.some((request) => request.protocol === protocol),
+    selected.value = selected.value.filter((id) =>
+      queue.sorted.value.some((request) => request.id === id),
     )
   },
 )
@@ -69,12 +69,12 @@ function openSelected() {
   if (!first) return
 
   if (rest.length === 0) {
-    void router.push({ name: 'request-detail', params: { protocol: first } })
+    void router.push({ name: 'request-detail', params: { id: first } })
     return
   }
 
-  for (const protocol of selected.value) {
-    const { href } = router.resolve({ name: 'request-detail', params: { protocol } })
+  for (const id of selected.value) {
+    const { href } = router.resolve({ name: 'request-detail', params: { id } })
     window.open(href, '_blank', 'noopener')
   }
 }

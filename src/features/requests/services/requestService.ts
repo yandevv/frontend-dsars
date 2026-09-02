@@ -5,6 +5,7 @@ import { REQUEST_OUTCOME_LABELS } from '@/features/requests/constants/requestSta
 import { addDays, formatDate } from '@/shared/utils/date'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { findRight } from '@/shared/constants/lgpdRights'
+import { uuidv7 } from '@/shared/utils/uuid'
 import type {
   DataRequest,
   NewRequest,
@@ -36,9 +37,10 @@ const requests: DataRequest[] = DEMO_REQUESTS.map((request) => ({ ...request }))
 /** Continua a numeração de onde a fila de demonstração parou. */
 let nextSequence = 461
 
+/** O identificador da URL não corresponde a nenhuma requisição deste portal. */
 export class RequestNotFoundError extends Error {
-  constructor(readonly protocol: string) {
-    super(protocol)
+  constructor(readonly id: string) {
+    super(id)
     this.name = 'RequestNotFoundError'
   }
 }
@@ -48,11 +50,15 @@ export async function listRequests(): Promise<readonly DataRequest[]> {
   return requests
 }
 
-export async function fetchRequest(protocol: string): Promise<DataRequest> {
+/** Busca pelo identificador — é ele, e não o protocolo, que vai na URL. */
+export async function fetchRequest(id: string): Promise<DataRequest> {
   await delay()
+  return find(id)
+}
 
-  const request = requests.find((item) => item.protocol === protocol)
-  if (!request) throw new RequestNotFoundError(protocol)
+function find(id: string): DataRequest {
+  const request = requests.find((item) => item.id === id)
+  if (!request) throw new RequestNotFoundError(id)
   return request
 }
 
@@ -71,7 +77,7 @@ export async function createRequest(
 
   requests.unshift({
     protocol,
-    id: `req_${randomHex()}-2026-0${sequence}`,
+    id: uuidv7(),
     rightNumeral,
     description: description.trim(),
     status: 'em-analise',
@@ -103,13 +109,12 @@ export async function createRequest(
 
 /** Encerra o atendimento com a resposta ao titular (RF013). */
 export async function answerRequest(
-  protocol: string,
+  id: string,
   answer: { outcome: RequestOutcome; text: string; legalBasis?: string; author?: string },
 ): Promise<DataRequest> {
   await delay()
 
-  const request = requests.find((item) => item.protocol === protocol)
-  if (!request) throw new RequestNotFoundError(protocol)
+  const request = find(id)
 
   const sentAt = new Date().toISOString()
   const author = answer.author ?? DPO_NAME
@@ -141,13 +146,12 @@ export async function answerRequest(
 
 /** Mantém a requisição na fila à espera do titular — o prazo não para. */
 export async function askForComplement(
-  protocol: string,
+  id: string,
   { detail, author = DPO_NAME }: { detail: string; author?: string },
 ): Promise<DataRequest> {
   await delay()
 
-  const request = requests.find((item) => item.protocol === protocol)
-  if (!request) throw new RequestNotFoundError(protocol)
+  const request = find(id)
 
   const at = new Date().toISOString()
   request.status = 'aguardando-complemento'
@@ -167,13 +171,12 @@ export async function askForComplement(
 
 /** Passa a requisição a outra pessoa da equipe, deixando registro (RF014). */
 export async function reassignRequest(
-  protocol: string,
+  id: string,
   { to, by = DPO_NAME }: { to: string; by?: string },
 ): Promise<DataRequest> {
   await delay()
 
-  const request = requests.find((item) => item.protocol === protocol)
-  if (!request) throw new RequestNotFoundError(protocol)
+  const request = find(id)
 
   const previous = request.assignee
   request.assignee = to
@@ -191,10 +194,4 @@ export async function reassignRequest(
   ]
 
   return request
-}
-
-function randomHex(): string {
-  return Math.floor(Math.random() * 0xffffffff)
-    .toString(16)
-    .padStart(8, '0')
 }

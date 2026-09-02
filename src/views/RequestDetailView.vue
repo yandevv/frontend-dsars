@@ -96,7 +96,7 @@ const meta = computed(() => {
   return `Protocolo ${current.protocol} · registrada em ${formatDate(current.registeredAt)} · titular ${current.subject.name}`;
 });
 
-async function load(protocol: string) {
+async function load(id: string) {
   loading.value = true;
   missing.value = false;
   notice.value = null;
@@ -104,10 +104,10 @@ async function load(protocol: string) {
   panelOpen.value = false;
 
   try {
-    const found = await fetchRequest(protocol);
+    const found = await fetchRequest(id);
     request.value = found;
     others.value = (await listRequests()).filter(
-      (item) => item.protocol !== found.protocol && item.subject.email === found.subject.email,
+      (item) => item.id !== found.id && item.subject.email === found.subject.email,
     );
   } catch {
     request.value = null;
@@ -118,9 +118,9 @@ async function load(protocol: string) {
 }
 
 watch(
-  () => route.params.protocol,
-  (protocol) => {
-    if (typeof protocol === "string") void load(protocol);
+  () => route.params.id,
+  (id) => {
+    if (typeof id === "string") void load(id);
   },
   { immediate: true },
 );
@@ -131,7 +131,7 @@ async function finish(answer: { outcome: RequestOutcome; text: string; legalBasi
 
   sending.value = true;
   try {
-    request.value = { ...(await answerRequest(current.protocol, answer)) };
+    request.value = { ...(await answerRequest(current.id, answer)) };
     panelOpen.value = false;
     notice.value = {
       title: "Atendimento finalizado",
@@ -148,7 +148,7 @@ async function requestComplement() {
   if (!current) return;
 
   request.value = {
-    ...(await askForComplement(current.protocol, {
+    ...(await askForComplement(current.id, {
       detail:
         "Pedido enviado pelo portal e por e-mail. O prazo legal continua correndo enquanto se espera a resposta.",
     })),
@@ -165,7 +165,7 @@ async function reassign(to: string) {
   const current = request.value;
   if (!current) return;
 
-  request.value = { ...(await reassignRequest(current.protocol, { to })) };
+  request.value = { ...(await reassignRequest(current.id, { to })) };
   notice.value = {
     title: "Requisição reatribuída",
     text: `${to} recebeu a notificação com o prazo restante. A troca ficou registrada na trilha de auditoria.`,
@@ -179,17 +179,17 @@ async function reassign(to: string) {
     <div class="mx-auto flex max-w-[1360px] flex-col gap-6">
       <AppBreadcrumb
         :trail="[{ label: 'Fila de atendimento', to: { name: 'request-queue' } }]"
-        :current="String(route.params.protocol)"
+        :current="request?.protocol ?? 'Requisição'"
       />
 
       <p v-if="loading" role="status" class="text-[15px] text-ink-soft">Abrindo a requisição…</p>
 
       <div v-else-if="missing || !request" class="flex max-w-[60ch] flex-col gap-3.5">
         <h1 class="font-serif text-[28px] font-semibold text-ink">
-          Não encontramos a requisição {{ route.params.protocol }}
+          Não encontramos esta requisição
         </h1>
         <p class="text-[15px] leading-relaxed text-ink-body">
-          O protocolo pode ter sido digitado com um dígito a menos, ou pertencer a outra
+          O endereço pode ter sido copiado pela metade, ou a requisição pertencer a outra
           organização. A fila mostra tudo o que está sob o escopo deste portal.
         </p>
         <div class="pt-1">

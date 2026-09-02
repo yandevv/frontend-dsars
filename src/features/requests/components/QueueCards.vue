@@ -25,7 +25,7 @@ defineProps<{ requests: readonly DataRequest[] }>()
   <ul class="flex flex-col gap-3">
     <li
       v-for="request in requests"
-      :key="request.protocol"
+      :key="request.id"
       class="flex flex-col gap-2 border border-line border-l-[3px] px-4 py-3.5"
       :class="DEADLINE_ROW_CLASSES[deadlineStatusOf(request)]"
     >
@@ -49,7 +49,7 @@ defineProps<{ requests: readonly DataRequest[] }>()
       <div class="flex items-center justify-between gap-3">
         <RequestStatusChip :status="request.status" />
         <RouterLink
-          :to="{ name: 'request-detail', params: { protocol: request.protocol } }"
+          :to="{ name: 'request-detail', params: { id: request.id } }"
           class="text-[15px] font-semibold text-brand underline"
         >
           Acessar<span class="sr-only"> a requisição {{ request.protocol }}</span>

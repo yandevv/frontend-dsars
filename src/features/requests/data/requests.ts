@@ -54,7 +54,7 @@ const MARINA = {
 export const DEMO_REQUESTS: readonly DataRequest[] = [
   {
     protocol: '2026-000418',
-    id: 'req_9f3c41a8-2026-0418',
+    id: '01a01f0a-da00-7d89-9fae-9ed1e70505ae',
     rightNumeral: 'VI',
     description:
       'Solicito a eliminação dos meus dados de contato usados em campanhas de comunicação da rede, mantendo apenas o que a legislação de saúde obriga a conservar. Não sou mais paciente da unidade Centro desde março de 2024.',
@@ -131,7 +131,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000403',
-    id: 'req_4b71c052-2026-0403',
+    id: '01a02e7e-0cef-75a5-9b71-9d773cb4842f',
     rightNumeral: 'II',
     description:
       'Quero a cópia dos exames laboratoriais realizados na unidade Centro entre janeiro e junho de 2026, incluindo os laudos e a identificação de quem os solicitou.',
@@ -172,7 +172,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000431',
-    id: 'req_c18de3f7-2026-0431',
+    id: '01a03df1-3fde-7004-ab3a-c05b8fa390dc',
     rightNumeral: 'III',
     description:
       'Meu nome está grafado errado no cadastro e sai errado em todo resultado de exame: consta “Rodrigo Amaral Nevez”. Peço a correção em todos os registros da rede.',
@@ -216,7 +216,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000444',
-    id: 'req_7a2f9be4-2026-0444',
+    id: '01a04d64-72cd-77b0-b43d-7046a56f75f1',
     rightNumeral: 'IX',
     description:
       'Retiro a autorização que dei para receber mensagens sobre campanhas de vacinação e pesquisas de satisfação por WhatsApp e SMS.',
@@ -252,7 +252,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000447',
-    id: 'req_31c0847d-2026-0447',
+    id: '01a05cd7-a5bc-7af8-b6f4-62cebc142f46',
     rightNumeral: 'II',
     description:
       'Peço a declaração completa dos dados que a rede mantém sobre mim: quais são, de onde vieram, para que servem e com quem foram compartilhados.',
@@ -286,7 +286,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000452',
-    id: 'req_a5e6b209-2026-0452',
+    id: '01a06c4a-d8ab-7598-bd63-4354e2e71de8',
     rightNumeral: 'V',
     description:
       'Estou mudando de operadora de saúde e preciso levar o histórico dos meus atendimentos em formato legível por máquina, incluindo consultas, exames e prescrições.',
@@ -316,7 +316,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000392',
-    id: 'req_2d94f7c1-2026-0392',
+    id: '01a07bbe-0b9a-7632-97a6-76d3d14bcea8',
     rightNumeral: 'V',
     description:
       'Preciso do meu histórico de consultas e exames dos últimos cinco anos em arquivo estruturado, para entregar ao novo plano de saúde.',
@@ -367,7 +367,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
   {
     protocol: '2026-000377',
-    id: 'req_6c08fa35-2026-0377',
+    id: '01a08b31-3e89-71b6-9d29-1d0b5298e979',
     rightNumeral: 'III',
     description:
       'A data de nascimento no meu cadastro está errada. Consta 14/03/1987 e o correto é 14/03/1978.',
@@ -403,6 +403,6 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
   },
 ]
 
-export function findDemoRequest(protocol: string): DataRequest | undefined {
-  return DEMO_REQUESTS.find((request) => request.protocol === protocol)
+export function findDemoRequest(id: string): DataRequest | undefined {
+  return DEMO_REQUESTS.find((request) => request.id === id)
 }

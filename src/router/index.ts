@@ -75,9 +75,10 @@ const router = createRouter({
       component: () => import('@/views/RequestQueueView.vue'),
     },
     {
-      // O protocolo vem na URL porque é o identificador que o titular guarda e
-      // que aparece em qualquer contato com a organização ou com a ANPD.
-      path: '/painel/requisicoes/:protocol',
+      // A URL leva o identificador (UUID v7), não o protocolo: o protocolo é o
+      // número que as pessoas leem e citam, o identificador é o que o sistema
+      // referencia — e não expõe a sequência de pedidos da organização.
+      path: '/painel/requisicoes/:id',
       name: 'request-detail',
       component: () => import('@/views/RequestDetailView.vue'),
     },

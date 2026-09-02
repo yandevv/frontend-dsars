@@ -37,13 +37,13 @@ const allSelected = computed(
 )
 
 function toggleAll() {
-  selected.value = allSelected.value ? [] : requests.map((request) => request.protocol)
+  selected.value = allSelected.value ? [] : requests.map((request) => request.id)
 }
 
-function toggle(protocol: string) {
-  selected.value = selected.value.includes(protocol)
-    ? selected.value.filter((item) => item !== protocol)
-    : [...selected.value, protocol]
+function toggle(id: string) {
+  selected.value = selected.value.includes(id)
+    ? selected.value.filter((item) => item !== id)
+    : [...selected.value, id]
 }
 </script>
 
@@ -94,7 +94,7 @@ function toggle(protocol: string) {
     <tbody>
       <tr
         v-for="request in requests"
-        :key="request.protocol"
+        :key="request.id"
         class="border-b border-line-soft"
         :class="DEADLINE_ROW_CLASSES[deadlineStatusOf(request)]"
       >
@@ -105,9 +105,9 @@ function toggle(protocol: string) {
           <input
             type="checkbox"
             class="size-[18px] accent-brand"
-            :checked="selected.includes(request.protocol)"
+            :checked="selected.includes(request.id)"
             :aria-label="`Selecionar a requisição ${request.protocol}`"
-            @change="toggle(request.protocol)"
+            @change="toggle(request.id)"
           >
         </td>
         <td class="py-[18px] pr-4 align-middle font-label text-[15px] font-semibold text-ink">
@@ -145,7 +145,7 @@ function toggle(protocol: string) {
         </td>
         <td class="px-4 py-[18px] text-right align-middle">
           <RouterLink
-            :to="{ name: 'request-detail', params: { protocol: request.protocol } }"
+            :to="{ name: 'request-detail', params: { id: request.id } }"
             class="text-[15px] font-semibold text-brand no-underline hover:text-brand-strong"
           >
             Acessar<span class="sr-only"> a requisição {{ request.protocol }}</span>

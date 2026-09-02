@@ -4,6 +4,10 @@
  *
  * A mesma página do titular com finalizar atendimento no lugar de cancelar.
  */
+/** A URL leva o identificador; o protocolo é o que aparece na tela. */
+const ELIMINACAO = '/painel/requisicoes/01a01f0a-da00-7d89-9fae-9ed1e70505ae'
+const PORTABILIDADE = '/painel/requisicoes/01a07bbe-0b9a-7632-97a6-76d3d14bcea8'
+
 const ANSWER =
   'Eliminamos seus dados de contato das bases de comunicação e marketing da rede, incluindo telefone e e-mail promocional. Os registros clínicos foram mantidos porque a guarda do prontuário é obrigação legal.'
 
@@ -15,7 +19,7 @@ function timeline() {
 describe('Detalhe da requisição', () => {
   beforeEach(() => {
     cy.viewport(1440, 900)
-    cy.visit('/painel/requisicoes/2026-000418')
+    cy.visit(ELIMINACAO)
   })
 
   it('abre o pedido, os anexos e o prazo legal em destaque', () => {
@@ -91,7 +95,7 @@ describe('Detalhe da requisição', () => {
   })
 
   it('abre uma requisição já concluída apenas em leitura', () => {
-    cy.visit('/painel/requisicoes/2026-000392')
+    cy.visit(PORTABILIDADE)
 
     cy.contains('Concluída').should('be.visible')
     cy.contains('Resposta enviada ao titular').should('be.visible')
@@ -99,10 +103,10 @@ describe('Detalhe da requisição', () => {
     cy.get('main').contains('button', 'Finalizar atendimento').should('not.exist')
   })
 
-  it('explica um protocolo que não existe em vez de mostrar página vazia', () => {
-    cy.visit('/painel/requisicoes/2026-999999')
+  it('explica um endereço que não leva a requisição nenhuma em vez de mostrar página vazia', () => {
+    cy.visit('/painel/requisicoes/01a00000-0000-7000-8000-000000000000')
 
-    cy.get('h1').should('contain.text', 'Não encontramos a requisição 2026-999999')
+    cy.get('h1').should('contain.text', 'Não encontramos esta requisição')
     cy.contains('a', 'Voltar à fila').should('have.attr', 'href', '/painel/fila')
   })
 
@@ -110,6 +114,6 @@ describe('Detalhe da requisição', () => {
     cy.contains('Outras requisições deste titular').should('be.visible')
     cy.contains('a', '2026-000392').click()
 
-    cy.location('pathname').should('eq', '/painel/requisicoes/2026-000392')
+    cy.location('pathname').should('eq', PORTABILIDADE)
   })
 })
