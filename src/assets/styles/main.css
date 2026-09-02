@@ -34,6 +34,7 @@
   --color-danger-strong: #7d1d16; /* título de erro */
   --color-danger-body: #5c1811; /* texto dentro do bloco de erro */
   --color-danger-wash: #fdf2f0;
+  --color-danger-busy: #b06a62; /* confirmação de cancelamento durante o envio */
   --color-warning: #b8541f; /* pendências, força média de senha */
   --color-warning-wash: #fdf5ef;
 

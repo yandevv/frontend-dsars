@@ -80,4 +80,23 @@ describe('BaseButton', () => {
 
     expect(wrapper.classes()).toContain('w-full')
   })
+
+  it('pinta de vermelho a confirmação do que não tem volta', () => {
+    const wrapper = mount(BaseButton, {
+      props: { variant: 'danger' },
+      slots: { default: 'Confirmar cancelamento' },
+    })
+
+    expect(wrapper.classes()).toContain('bg-danger')
+  })
+
+  it('mostra o envio em andamento também na variante de alerta', () => {
+    const wrapper = mount(BaseButton, {
+      props: { variant: 'danger', busy: true },
+      slots: { default: 'Cancelando…' },
+    })
+
+    expect(wrapper.classes()).toContain('bg-danger-busy')
+    expect(wrapper.attributes('disabled')).toBeDefined()
+  })
 })
