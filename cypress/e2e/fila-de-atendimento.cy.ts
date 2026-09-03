@@ -54,7 +54,7 @@ describe('Fila de atendimento', () => {
 
     cy.get('input[type="search"]').clear()
     cy.get('input[type="search"]').type('marina')
-    cy.get('tbody tr').should('have.length', 2)
+    cy.get('tbody tr').should('have.length', 5)
   })
 
   it('explica o resultado vazio em vez de mostrar uma tabela em branco', () => {

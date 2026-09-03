@@ -73,11 +73,8 @@ describe('useRequestQueue', () => {
     queue.search.value = '000431'
     expect(queue.sorted.value).toHaveLength(1)
 
-    queue.search.value = 'marina'
-    expect(queue.sorted.value.map((request) => request.protocol)).toEqual([
-      '2026-000418',
-      '2026-000392',
-    ])
+    queue.search.value = 'iara'
+    expect(queue.sorted.value.map((request) => request.protocol)).toEqual(['2026-000452'])
   })
 
   it('conta cada situação de prazo sobre a fila inteira, não sobre o recorte', async () => {

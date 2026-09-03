@@ -45,17 +45,24 @@ const router = createRouter({
     {
       path: '/requisicoes',
       name: 'my-requests',
-      component: underConstruction,
-      meta: {
-        title: 'Minhas requisições',
-        description:
-          'A lista das suas requisições, com estado e prazo de cada uma, ainda não foi implementada.',
-      },
+      component: () => import('@/views/MyRequestsView.vue'),
     },
     {
       path: '/requisicoes/nova',
       name: 'new-request',
       component: () => import('@/views/NewRequestView.vue'),
+    },
+    {
+      // Declarada depois de `/requisicoes/nova` para que "nova" não seja lido
+      // como identificador.
+      path: '/requisicoes/:id',
+      name: 'my-request-detail',
+      component: underConstruction,
+      meta: {
+        title: 'Detalhe da requisição',
+        description:
+          'A página com o pedido, a resposta e o histórico da sua requisição ainda não foi implementada.',
+      },
     },
     {
       path: '/meus-dados',
@@ -169,9 +176,12 @@ const router = createRouter({
       component: () => import('@/views/NotFoundView.vue'),
     },
   ],
-  scrollBehavior(_to, _from, savedPosition) {
-    // Voltar/avançar restaura a posição; navegação nova começa do topo.
-    return savedPosition ?? { top: 0 }
+  scrollBehavior(to, _from, savedPosition) {
+    // Voltar/avançar restaura a posição; um link com âncora leva à seção;
+    // navegação nova começa do topo.
+    if (savedPosition) return savedPosition
+    if (to.hash) return { el: to.hash }
+    return { top: 0 }
   },
 })
 

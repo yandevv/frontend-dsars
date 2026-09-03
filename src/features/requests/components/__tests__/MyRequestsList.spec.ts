@@ -1,0 +1,71 @@
+import { describe, it, expect } from 'vitest'
+import { mount, RouterLinkStub } from '@vue/test-utils'
+
+import MyRequestsList from '../MyRequestsList.vue'
+import { DEMO_REQUESTS } from '@/features/requests/data/requests'
+import { ownRequests, sortForTitular } from '@/features/requests/composables/useMyRequests'
+
+const requests = sortForTitular(ownRequests(DEMO_REQUESTS, 'titular@exemplo.com.br'))
+
+function render(selected: string[] = []) {
+  return mount(MyRequestsList, {
+    props: {
+      requests,
+      selected,
+      'onUpdate:selected': () => {},
+    },
+    global: { stubs: { RouterLink: RouterLinkStub } },
+  })
+}
+
+function tableRow(wrapper: ReturnType<typeof render>, protocol: string) {
+  return wrapper.findAll('tbody tr').find((row) => row.text().includes(protocol))!
+}
+
+describe('MyRequestsList', () => {
+  it('pinta a linha pelo prazo e diz como a requisição encerrou', () => {
+    const wrapper = render()
+
+    expect(tableRow(wrapper, '2026-000418').classes()).toContain('bg-danger-wash')
+    expect(tableRow(wrapper, '2026-000418').text()).toContain('Prazo era')
+    expect(tableRow(wrapper, '2026-000377').text()).toContain('Encerrada pelo titular')
+    expect(tableRow(wrapper, '2026-000392').text()).toMatch(/Encerrada (no prazo|com atraso)/)
+  })
+
+  it('seleciona uma requisição em andamento', async () => {
+    const wrapper = render()
+
+    await tableRow(wrapper, '2026-000447').find('input').trigger('click')
+
+    const open = requests.find((request) => request.protocol === '2026-000447')!
+    expect(wrapper.emitted('update:selected')?.[0]?.[0]).toEqual([open.id])
+  })
+
+  it('não deixa uma encerrada entrar na seleção e avisa o motivo', async () => {
+    const wrapper = render()
+
+    await tableRow(wrapper, '2026-000392').find('input').trigger('click')
+
+    expect(wrapper.emitted('update:selected')).toBeUndefined()
+    expect(wrapper.emitted('locked')).toHaveLength(1)
+  })
+
+  it('marcar todas marca só as que estão em andamento', async () => {
+    const wrapper = render()
+
+    await wrapper.find('thead input').trigger('change')
+
+    const selected = wrapper.emitted('update:selected')?.[0]?.[0] as string[]
+    expect(selected).toHaveLength(3)
+  })
+
+  it('leva cada linha ao detalhe da requisição pelo identificador', () => {
+    const wrapper = render()
+
+    const link = tableRow(wrapper, '2026-000418').findComponent(RouterLinkStub)
+    expect(link.props('to')).toEqual({
+      name: 'my-request-detail',
+      params: { id: requests[0]!.id },
+    })
+  })
+})

@@ -10,6 +10,9 @@ describe('router', () => {
     ['/recuperar-acesso', 'password-recovery'],
     ['/termos-de-uso', 'terms'],
     ['/aviso-de-privacidade', 'privacy'],
+    ['/requisicoes', 'my-requests'],
+    ['/requisicoes/nova', 'new-request'],
+    ['/requisicoes/01a01f0a-da00-7d89-9fae-9ed1e70505ae', 'my-request-detail'],
   ])('resolve %s para a rota %s', (path, name) => {
     expect(router.resolve(path).name).toBe(name)
   })

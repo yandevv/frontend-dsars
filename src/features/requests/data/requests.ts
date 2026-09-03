@@ -20,7 +20,10 @@ import type { DataRequest } from '@/features/requests/types/request'
  * Os nomes divergem do mockup onde ele se contradizia. Helena Prado Vasconcelos
  * é a encarregada do portal público, então não pode ser também a titular que
  * abre pedidos contra a própria organização: no lugar dela entra Marina Torres
- * de Almeida, a conta de titular de `features/auth/data/accounts.ts`. As
+ * de Almeida, a conta de titular de `features/auth/data/accounts.ts`. Ela é
+ * dona de cinco pedidos — um vencido, um que vence em poucos dias, um em dia,
+ * um concluído e um cancelado —, que é o que `Minhas Requisicoes.dc.html`
+ * precisa para mostrar todas as situações da lista do titular. As
  * unidades também mudaram de cidade — o Instituto Meridiano fica em Franca/SP,
  * e o mockup as situava em Belo Horizonte.
  *
@@ -221,13 +224,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
     description:
       'Retiro a autorização que dei para receber mensagens sobre campanhas de vacinação e pesquisas de satisfação por WhatsApp e SMS.',
     status: 'em-analise',
-    subject: {
-      name: 'Sueli Andrade Rocha',
-      email: 'sueli.rocha@exemplo.com.br',
-      document: 'CPF ***.991.###-60',
-      customerSince: '2017',
-      verifiedAt: moment(-10, '08:15'),
-    },
+    subject: MARINA,
     registeredAt: registeredFor(3, '16:37'),
     dueAt: moment(3, '23:59'),
     assignee: CAIO,
@@ -257,13 +254,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
     description:
       'Peço a declaração completa dos dados que a rede mantém sobre mim: quais são, de onde vieram, para que servem e com quem foram compartilhados.',
     status: 'em-analise',
-    subject: {
-      name: 'Tarso Menezes Braga',
-      email: 'tarso.braga@exemplo.com.br',
-      document: 'CPF ***.145.###-93',
-      customerSince: '2024',
-      verifiedAt: moment(-5, '13:48'),
-    },
+    subject: MARINA,
     registeredAt: registeredFor(9, '10:22'),
     dueAt: moment(9, '23:59'),
     channel: 'Portal do titular, com conta verificada',
@@ -372,13 +363,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
     description:
       'A data de nascimento no meu cadastro está errada. Consta 14/03/1987 e o correto é 14/03/1978.',
     status: 'cancelada',
-    subject: {
-      name: 'Wagner Sipriano Melo',
-      email: 'wagner.melo@exemplo.com.br',
-      document: 'CPF ***.870.###-55',
-      customerSince: '2015',
-      verifiedAt: moment(-27, '11:41'),
-    },
+    subject: MARINA,
     registeredAt: registeredFor(-13, '11:30'),
     dueAt: moment(-13, '23:59'),
     closedAt: moment(-25, '19:08'),
