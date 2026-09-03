@@ -80,8 +80,13 @@ export function useMyRequests(email: MaybeRefOrGetter<string>) {
   /** Concluídas e canceladas não entram em ação em lote: já estão encerradas. */
   const selectable = computed(() => requests.value.filter((request) => isOpen(request.status)))
 
-  async function reload() {
-    loading.value = true
+  /**
+   * Busca a lista de novo. `quiet` atualiza sem trocar a tabela pelo esqueleto —
+   * depois de um cancelamento a pessoa quer ver a linha mudar de estado, não a
+   * lista sumir e voltar.
+   */
+  async function reload({ quiet = false }: { quiet?: boolean } = {}) {
+    if (!quiet) loading.value = true
     try {
       all.value = [...(await listRequests())]
     } finally {
@@ -104,7 +109,7 @@ export function useMyRequests(email: MaybeRefOrGetter<string>) {
     selection.value = selection.value.filter((id) => open.some((request) => request.id === id))
   })
 
-  onMounted(reload)
+  onMounted(() => reload())
 
   return { requests, counts, selectable, selected: selection, loading, reload }
 }

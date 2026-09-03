@@ -1,7 +1,10 @@
 import { DEMO_REQUESTS } from '@/features/requests/data/requests'
 import { DPO_NAME } from '@/features/requests/data/team'
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { REQUEST_OUTCOME_LABELS } from '@/features/requests/constants/requestStatus'
+import {
+  CANCEL_REASON_MIN_LENGTH,
+  LEGAL_DEADLINE_DAYS,
+} from '@/features/requests/constants/requestPolicy'
+import { REQUEST_OUTCOME_LABELS, isOpen } from '@/features/requests/constants/requestStatus'
 import { addDays, formatDate } from '@/shared/utils/date'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { findRight } from '@/shared/constants/lgpdRights'
@@ -194,4 +197,54 @@ export async function reassignRequest(
   ]
 
   return request
+}
+
+/** O que o cancelamento em lote conseguiu fazer — e o que teve de deixar de fora. */
+export interface CancelResult {
+  cancelled: DataRequest[]
+  /** Já estavam concluídas ou canceladas quando o pedido chegou. */
+  skipped: DataRequest[]
+}
+
+/**
+ * Cancela uma ou mais requisições com um motivo único.
+ *
+ * Só o que ainda está em aberto é cancelado; o resto volta em `skipped` para a
+ * tela dizer o que ficou de fora, em vez de falhar o lote inteiro por causa de
+ * uma requisição que foi respondida enquanto a pessoa escrevia o motivo.
+ */
+export async function cancelRequests(ids: readonly string[], reason: string): Promise<CancelResult> {
+  await delay()
+
+  const text = reason.trim()
+  if (text.length < CANCEL_REASON_MIN_LENGTH) {
+    throw new Error(`O motivo precisa de pelo menos ${CANCEL_REASON_MIN_LENGTH} caracteres.`)
+  }
+
+  const at = new Date().toISOString()
+  const result: CancelResult = { cancelled: [], skipped: [] }
+
+  for (const id of ids) {
+    const request = find(id)
+    if (!isOpen(request.status)) {
+      result.skipped.push(request)
+      continue
+    }
+
+    request.status = 'cancelada'
+    request.closedAt = at
+    request.timeline = [
+      {
+        at,
+        title: 'Requisição cancelada pelo titular',
+        detail: `Motivo informado: “${text}”. A contagem do prazo foi encerrada.`,
+        author: 'Titular',
+        highlight: true,
+      },
+      ...request.timeline,
+    ]
+    result.cancelled.push(request)
+  }
+
+  return result
 }

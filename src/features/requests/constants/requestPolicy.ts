@@ -13,6 +13,10 @@ export const DEADLINE_ALERT_DAYS = 3
 export const DESCRIPTION_MIN_LENGTH = 20
 export const DESCRIPTION_MAX_LENGTH = 2000
 
+/** O motivo do cancelamento: uma frase basta, mas uma palavra solta não explica nada. */
+export const CANCEL_REASON_MIN_LENGTH = 10
+export const CANCEL_REASON_MAX_LENGTH = 500
+
 export const ANSWER_MIN_LENGTH = 40
 export const ANSWER_MAX_LENGTH = 4000
 

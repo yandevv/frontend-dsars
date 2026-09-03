@@ -68,4 +68,17 @@ describe('MyRequestsList', () => {
     })
   })
 
+
+  it('oferece cancelar só nas requisições em andamento', async () => {
+    const wrapper = render()
+
+    const cancel = tableRow(wrapper, '2026-000447')
+      .findAll('button')
+      .find((button) => button.text().startsWith('Cancelar'))!
+    await cancel.trigger('click')
+
+    const [cancelled] = wrapper.emitted<[{ protocol: string }]>('cancel')![0]!
+    expect(cancelled.protocol).toBe('2026-000447')
+    expect(tableRow(wrapper, '2026-000392').text()).not.toContain('Cancelar')
+  })
 })

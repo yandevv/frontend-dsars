@@ -6,6 +6,7 @@ import {
   RequestNotFoundError,
   answerRequest,
   askForComplement,
+  cancelRequests,
   createRequest,
   fetchRequest,
   listRequests,
@@ -79,5 +80,35 @@ describe('requestService', () => {
 
     expect(waiting.status).toBe('aguardando-complemento')
     expect(waiting.closedAt).toBeUndefined()
+  })
+
+  it('cancela em lote com um motivo único e registra na trilha de cada uma', async () => {
+    const ids = [idOf('2026-000418'), idOf('2026-000403')]
+    const { cancelled, skipped } = await cancelRequests(ids, '  Consegui os documentos direto na unidade.  ')
+
+    expect(skipped).toEqual([])
+    expect(cancelled.map((request) => request.status)).toEqual(['cancelada', 'cancelada'])
+    for (const request of cancelled) {
+      expect(request.closedAt).toBeDefined()
+      expect(request.timeline[0]?.title).toBe('Requisição cancelada pelo titular')
+      expect(request.timeline[0]?.detail).toContain('“Consegui os documentos direto na unidade.”')
+    }
+  })
+
+  it('deixa de fora o que já estava encerrado, sem falhar o lote', async () => {
+    const { cancelled, skipped } = await cancelRequests(
+      [idOf('2026-000392'), idOf('2026-000452')],
+      'Não preciso mais destes pedidos.',
+    )
+
+    expect(skipped.map((request) => request.protocol)).toEqual(['2026-000392'])
+    expect(cancelled.map((request) => request.protocol)).toEqual(['2026-000452'])
+    expect(skipped[0]?.status).toBe('concluida')
+  })
+
+  it('recusa um motivo curto demais', async () => {
+    await expect(cancelRequests([idOf('2026-000431')], 'não quero')).rejects.toThrow(
+      'O motivo precisa de pelo menos 10 caracteres.',
+    )
   })
 })

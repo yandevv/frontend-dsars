@@ -21,6 +21,11 @@ const { requests } = defineProps<{ requests: readonly DataRequest[] }>();
 
 const selected = defineModel<string[]>("selected", { required: true });
 
+defineEmits<{
+  /** Cancelar só esta linha — abre o modal no modo individual. */
+  cancel: [request: DataRequest];
+}>();
+
 const ROW_BACKGROUND: Record<DeadlineStatus, string> = {
   vencida: "bg-danger-wash",
   proxima: "bg-due-soon-wash",
@@ -120,7 +125,7 @@ function detailRoute(request: DataRequest) {
             {{ heading }}
           </th>
           <th scope="col">
-            <span class="sr-only">Ação</span>
+            <span class="sr-only">Ações</span>
           </th>
         </tr>
       </thead>
@@ -136,9 +141,9 @@ function detailRoute(request: DataRequest) {
               type="checkbox"
               class="size-[18px] accent-brand"
               v-model="selected"
-              v-model="selected"
               :value="row.request.id"
-              :disabled="!row.open"lecionar a requisição ${row.request.protocol}`"
+              :disabled="!row.open"
+              :aria-label="`Selecionar a requisição ${row.request.protocol}`"
             />
           </td>
           <td class="w-[150px] font-label text-[15px] font-semibold text-ink">
@@ -163,13 +168,23 @@ function detailRoute(request: DataRequest) {
               {{ row.detail }}
             </p>
           </td>
-          <td class="w-[92px] pr-4 text-right">
-            <RouterLink
-              :to="detailRoute(row.request)"
-              class="text-[15px] font-medium text-brand no-underline hover:text-brand-strong"
-            >
-              Abrir<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
-            </RouterLink>
+          <td class="w-[150px] pr-4">
+            <div class="flex items-center justify-end gap-3.5">
+              <button
+                v-if="row.open"
+                type="button"
+                class="py-1 text-[15px] font-medium text-danger underline hover:text-danger-strong"
+                @click="$emit('cancel', row.request)"
+              >
+                Cancelar<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
+              </button>
+              <RouterLink
+                :to="detailRoute(row.request)"
+                class="text-[15px] font-medium text-brand no-underline hover:text-brand-strong"
+              >
+                Abrir<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
+              </RouterLink>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -211,10 +226,10 @@ function detailRoute(request: DataRequest) {
             v-model="selected"
             :value="row.request.id"
             :disabled="!row.open"
-            :art
-            v-model="selecied"a-label="`Selecionar a requisição ${row.request.protocol}`"
+            :aria-label="`Selecionar a requisição ${row.request.protocol}`"
           />
-        </div>] font-semibold text-ink">
+        </div>
+        <p class="text-[17px] font-semibold text-ink">
           {{ row.right }}
         </p>
         <p class="text-[15px] font-semibold" :class="DEADLINE_TEXT_CLASSES[row.situation]">
@@ -227,9 +242,19 @@ function detailRoute(request: DataRequest) {
           <span class="text-[13px] font-semibold text-ink-soft">
             {{ REQUEST_STATUS_LABELS[row.request.status] }}
           </span>
-          <RouterLink :to="detailRoute(row.request)" class="text-[15px] font-medium text-brand">
-            Abrir<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
-          </RouterLink>
+          <div class="flex items-center gap-4">
+            <button
+              v-if="row.open"
+              type="button"
+              class="py-1 text-[15px] font-medium text-danger underline"
+              @click="$emit('cancel', row.request)"
+            >
+              Cancelar<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
+            </button>
+            <RouterLink :to="detailRoute(row.request)" class="text-[15px] font-medium text-brand">
+              Abrir<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
+            </RouterLink>
+          </div>
         </div>
       </li>
     </ul>

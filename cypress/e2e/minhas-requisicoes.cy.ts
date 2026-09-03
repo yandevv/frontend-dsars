@@ -48,6 +48,43 @@ describe('Minhas requisições', () => {
     cy.contains('tbody tr', '2026-000377').find('input[type="checkbox"]').should('be.disabled')
   })
 
+  it('cancela as selecionadas com um motivo único', () => {
+    cy.get('tbody tr').eq(0).find('input[type="checkbox"]').click()
+    cy.get('tbody tr').eq(1).find('input[type="checkbox"]').click()
+    cy.contains('button', 'Cancelar selecionadas').click()
+
+    cy.get('[role="dialog"]').within(() => {
+      cy.contains('Cancelar 2 requisições?').should('be.visible')
+      cy.contains('button', 'Confirmar cancelamento das 2').click()
+      cy.contains('Escreva pelo menos 10 caracteres.').should('be.visible')
+
+      cy.get('textarea').type('Consegui os documentos direto na unidade Centro.')
+      cy.get('input[type="checkbox"]').check()
+      cy.contains('button', 'Confirmar cancelamento das 2').click()
+    })
+
+    cy.get('[role="dialog"]').should('not.exist')
+    cy.contains('2 requisições canceladas').should('be.visible')
+    cy.contains('Motivo registrado: “Consegui os documentos direto na unidade Centro.”').should(
+      'be.visible',
+    )
+    cy.contains('tbody tr', '2026-000418').should('contain.text', 'Cancelada')
+    cy.contains('tbody tr', '2026-000418').find('input[type="checkbox"]').should('be.disabled')
+  })
+
+  it('cancela uma requisição pela própria linha e deixa manter', () => {
+    cy.contains('tbody tr', '2026-000447').contains('button', 'Cancelar').click()
+
+    cy.get('[role="dialog"]').within(() => {
+      cy.contains('Cancelamento individual').should('be.visible')
+      cy.contains('Cancelar a requisição 2026-000447?').should('be.visible')
+      cy.contains('button', 'Manter requisição').click()
+    })
+
+    cy.get('[role="dialog"]').should('not.exist')
+    cy.contains('tbody tr', '2026-000447').should('contain.text', 'Em análise')
+  })
+
   it('troca a tabela por cartões no celular', () => {
     cy.viewport(360, 780)
     cy.visit('/requisicoes')
