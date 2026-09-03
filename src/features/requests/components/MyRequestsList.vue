@@ -21,11 +21,6 @@ const { requests } = defineProps<{ requests: readonly DataRequest[] }>();
 
 const selected = defineModel<string[]>("selected", { required: true });
 
-const emit = defineEmits<{
-  /** Clicou numa linha encerrada: a tela explica por que ela não entra no lote. */
-  locked: [];
-}>();
-
 const ROW_BACKGROUND: Record<DeadlineStatus, string> = {
   vencida: "bg-danger-wash",
   proxima: "bg-due-soon-wash",
@@ -92,17 +87,6 @@ function toggleAll() {
   selected.value = allSelected.value ? [] : [...openIds.value];
 }
 
-function toggle(row: Row) {
-  if (!row.open) {
-    emit("locked");
-    return;
-  }
-  const id = row.request.id;
-  selected.value = selected.value.includes(id)
-    ? selected.value.filter((item) => item !== id)
-    : [...selected.value, id];
-}
-
 function detailRoute(request: DataRequest) {
   return { name: "my-request-detail", params: { id: request.id } };
 }
@@ -151,10 +135,10 @@ function detailRoute(request: DataRequest) {
             <input
               type="checkbox"
               class="size-[18px] accent-brand"
-              :checked="selected.includes(row.request.id)"
-              :aria-disabled="!row.open || undefined"
-              :aria-label="`Selecionar a requisição ${row.request.protocol}`"
-              @click.prevent="toggle(row)"
+              v-model="selected"
+              v-model="selected"
+              :value="row.request.id"
+              :disabled="!row.open"lecionar a requisição ${row.request.protocol}`"
             />
           </td>
           <td class="w-[150px] font-label text-[15px] font-semibold text-ink">
@@ -224,13 +208,13 @@ function detailRoute(request: DataRequest) {
           <input
             type="checkbox"
             class="size-[18px] shrink-0 accent-brand"
-            :checked="selected.includes(row.request.id)"
-            :aria-disabled="!row.open || undefined"
-            :aria-label="`Selecionar a requisição ${row.request.protocol}`"
-            @click.prevent="toggle(row)"
+            v-model="selected"
+            :value="row.request.id"
+            :disabled="!row.open"
+            :art
+            v-model="selecied"a-label="`Selecionar a requisição ${row.request.protocol}`"
           />
-        </div>
-        <p class="text-[17px] font-semibold text-ink">
+        </div>] font-semibold text-ink">
           {{ row.right }}
         </p>
         <p class="text-[15px] font-semibold" :class="DEADLINE_TEXT_CLASSES[row.situation]">

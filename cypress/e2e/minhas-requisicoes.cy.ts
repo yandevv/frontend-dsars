@@ -33,6 +33,9 @@ describe('Minhas requisições', () => {
     cy.get('tbody tr').eq(0).find('input[type="checkbox"]').click()
     cy.get('tbody tr').eq(1).find('input[type="checkbox"]').click()
 
+    cy.get('tbody tr').eq(0).find('input[type="checkbox"]').should('be.checked')
+    cy.get('tbody tr').eq(1).find('input[type="checkbox"]').should('be.checked')
+
     cy.contains('2 requisições selecionadas').should('be.visible')
     cy.contains('button', 'Acessar em abas').should('be.visible')
 
@@ -40,11 +43,9 @@ describe('Minhas requisições', () => {
     cy.contains('requisições selecionadas').should('not.exist')
   })
 
-  it('explica por que uma encerrada não entra na seleção', () => {
-    cy.contains('tbody tr', '2026-000392').find('input[type="checkbox"]').click()
-
-    cy.contains('não entram nas ações em lote').should('be.visible')
-    cy.contains('requisição selecionada').should('not.exist')
+  it('não deixa selecionar uma requisição encerrada', () => {
+    cy.contains('tbody tr', '2026-000392').find('input[type="checkbox"]').should('be.disabled')
+    cy.contains('tbody tr', '2026-000377').find('input[type="checkbox"]').should('be.disabled')
   })
 
   it('troca a tabela por cartões no celular', () => {

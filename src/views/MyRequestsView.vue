@@ -76,22 +76,37 @@ async function resendLink() {
         class="flex flex-wrap items-start justify-between gap-6 border border-pending-line bg-pending-wash px-5 py-5 lg:px-6"
       >
         <div class="flex max-w-[70ch] flex-col gap-1.5">
-          <h2 id="titulo-pendencia" class="text-base font-semibold text-ink">
+          <h2
+            id="titulo-pendencia"
+            class="text-base font-semibold text-ink"
+          >
             Sua conta está pendente de confirmação de e-mail
           </h2>
           <p class="text-[15px] leading-relaxed text-ink-body">
             Registrar uma requisição exige o endereço confirmado. Enviamos o link para
             <strong class="font-semibold">{{ account.email }}</strong> — ele vale 24 horas.
           </p>
-          <p v-if="resend === 'sent'" role="status" class="text-sm text-brand">
+          <p
+            v-if="resend === 'sent'"
+            role="status"
+            class="text-sm text-brand"
+          >
             Enviamos um novo link. Confira também a caixa de spam.
           </p>
         </div>
         <div class="flex flex-wrap gap-2.5">
-          <BaseButton size="sm" :busy="resend === 'sending'" @click="resendLink">
+          <BaseButton
+            size="sm"
+            :busy="resend === 'sending'"
+            @click="resendLink"
+          >
             {{ resend === "sending" ? "Reenviando…" : "Reenviar link" }}
           </BaseButton>
-          <BaseButton size="sm" variant="secondary" :to="{ name: 'settings' }">
+          <BaseButton
+            size="sm"
+            variant="secondary"
+            :to="{ name: 'settings' }"
+          >
             Corrigir e-mail
           </BaseButton>
         </div>
@@ -118,13 +133,19 @@ async function resendLink() {
           >
             Nova requisição
           </BaseButton>
-          <p v-if="!confirmed" class="text-[13px] text-ink-muted">
+          <p
+            v-if="!confirmed"
+            class="text-[13px] text-ink-muted"
+          >
             Disponível após a confirmação do e-mail
           </p>
         </div>
       </div>
 
-      <QueueSkeleton v-if="list.loading.value" label="Buscando suas requisições…" />
+      <QueueSkeleton
+        v-if="list.loading.value"
+        label="Buscando suas requisições…"
+      />
 
       <!-- Nada registrado ainda: a tela vira convite, não tabela vazia. -->
       <section
@@ -150,7 +171,11 @@ async function resendLink() {
           </p>
         </div>
         <div class="flex flex-wrap justify-center gap-2.5">
-          <BaseButton v-if="confirmed" size="sm" :to="{ name: 'new-request' }">
+          <BaseButton
+            v-if="confirmed"
+            size="sm"
+            :to="{ name: 'new-request' }"
+          >
             Registrar a primeira requisição
           </BaseButton>
           <BaseButton
@@ -171,7 +196,10 @@ async function resendLink() {
           class="flex flex-wrap items-center justify-between gap-6 bg-ink px-5 py-3.5"
         >
           <div class="flex flex-wrap items-center gap-4">
-            <p aria-live="polite" class="text-[15px] font-semibold text-white">
+            <p
+              aria-live="polite"
+              class="text-[15px] font-semibold text-white"
+            >
               {{ selectionLabel }}
             </p>
             <button
@@ -211,17 +239,16 @@ async function resendLink() {
         <MyRequestsList
           v-model:selected="list.selected.value"
           :requests="list.requests.value"
-          @locked="
-            notice =
-              'Requisições concluídas ou canceladas não entram nas ações em lote — elas já estão encerradas.'
-          "
         />
 
         <div class="flex flex-wrap items-center justify-between gap-6">
           <p class="text-sm leading-normal text-ink-soft">
             {{ footer }}
           </p>
-          <RouterLink :to="{ name: 'help' }" class="text-sm text-brand hover:text-brand-strong">
+          <RouterLink
+            :to="{ name: 'help' }"
+            class="text-sm text-brand hover:text-brand-strong"
+          >
             Como os prazos da LGPD são contados
           </RouterLink>
         </div>

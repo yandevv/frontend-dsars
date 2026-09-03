@@ -35,19 +35,18 @@ describe('MyRequestsList', () => {
   it('seleciona uma requisição em andamento', async () => {
     const wrapper = render()
 
-    await tableRow(wrapper, '2026-000447').find('input').trigger('click')
+    await tableRow(wrapper, '2026-000447').find('input').setValue(true)
 
     const open = requests.find((request) => request.protocol === '2026-000447')!
     expect(wrapper.emitted('update:selected')?.[0]?.[0]).toEqual([open.id])
   })
 
-  it('não deixa uma encerrada entrar na seleção e avisa o motivo', async () => {
+  it('desabilita a caixa das requisições encerradas', () => {
     const wrapper = render()
 
-    await tableRow(wrapper, '2026-000392').find('input').trigger('click')
-
-    expect(wrapper.emitted('update:selected')).toBeUndefined()
-    expect(wrapper.emitted('locked')).toHaveLength(1)
+    expect(tableRow(wrapper, '2026-000392').find('input').attributes('disabled')).toBeDefined()
+    expect(tableRow(wrapper, '2026-000377').find('input').attributes('disabled')).toBeDefined()
+    expect(tableRow(wrapper, '2026-000447').find('input').attributes('disabled')).toBeUndefined()
   })
 
   it('marcar todas marca só as que estão em andamento', async () => {
@@ -68,4 +67,5 @@ describe('MyRequestsList', () => {
       params: { id: requests[0]!.id },
     })
   })
+
 })
