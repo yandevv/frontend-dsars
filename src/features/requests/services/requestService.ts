@@ -192,6 +192,7 @@ export async function reassignRequest(
         : `Atribuída a ${to}, que recebe notificação com o prazo restante.`,
       author: by,
       highlight: true,
+      internal: true,
     },
     ...request.timeline,
   ]

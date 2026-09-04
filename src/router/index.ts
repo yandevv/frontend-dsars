@@ -57,12 +57,7 @@ const router = createRouter({
       // como identificador.
       path: '/requisicoes/:id',
       name: 'my-request-detail',
-      component: underConstruction,
-      meta: {
-        title: 'Detalhe da requisição',
-        description:
-          'A página com o pedido, a resposta e o histórico da sua requisição ainda não foi implementada.',
-      },
+      component: () => import('@/views/MyRequestDetailView.vue'),
     },
     {
       path: '/meus-dados',

@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 import BasePanel from '@/shared/ui/BasePanel.vue'
 import { formatDateTime } from '@/shared/utils/date'
 import type { RequestTimelineEntry } from '@/features/requests/types/request'
+import type { RequestAudience } from '@/features/requests/types/audience'
 
 /**
  * Histórico e auditoria da requisição (RF006 / RF013).
@@ -9,15 +12,30 @@ import type { RequestTimelineEntry } from '@/features/requests/types/request'
  * É uma `<ol>` do mais recente para o mais antigo: a última coisa que
  * aconteceu é a que interessa a quem abre a requisição, e quem precisa da
  * história inteira rola até o registro.
+ *
+ * O titular vê o mesmo histórico sem o trabalho interno da equipe e sem a
+ * coluna de autor: para ele, quem atende é a organização.
  */
-defineProps<{ entries: readonly RequestTimelineEntry[] }>()
+const { entries, audience = 'encarregado' } = defineProps<{
+  entries: readonly RequestTimelineEntry[]
+  audience?: RequestAudience
+}>()
 
 defineEmits<{ export: [] }>()
+
+const titular = computed(() => audience === 'titular')
+
+const shown = computed(() =>
+  titular.value ? entries.filter((entry) => !entry.internal) : entries,
+)
 </script>
 
 <template>
-  <BasePanel eyebrow="Histórico e auditoria">
-    <template #action>
+  <BasePanel :eyebrow="titular ? 'Histórico da requisição' : 'Histórico e auditoria'">
+    <template
+      v-if="!titular"
+      #action
+    >
       <button
         type="button"
         class="text-sm font-medium text-brand hover:text-brand-strong"
@@ -29,10 +47,13 @@ defineEmits<{ export: [] }>()
 
     <ol>
       <li
-        v-for="entry in entries"
+        v-for="entry in shown"
         :key="`${entry.at}-${entry.title}`"
-        class="grid gap-4 border-b border-line-soft px-[22px] py-[15px] last:border-b-0 md:grid-cols-[168px_minmax(0,1fr)_150px] md:items-baseline"
-        :class="entry.highlight ? 'bg-surface-muted' : 'bg-surface'"
+        class="grid gap-4 border-b border-line-soft px-[22px] py-[15px] last:border-b-0 md:items-baseline"
+        :class="[
+          entry.highlight ? 'bg-surface-muted' : 'bg-surface',
+          titular ? 'md:grid-cols-[168px_minmax(0,1fr)]' : 'md:grid-cols-[168px_minmax(0,1fr)_150px]',
+        ]"
       >
         <p class="font-label text-sm text-ink-muted">
           {{ formatDateTime(entry.at) }}
@@ -45,7 +66,10 @@ defineEmits<{ export: [] }>()
             {{ entry.detail }}
           </p>
         </div>
-        <p class="text-sm text-ink-muted">
+        <p
+          v-if="!titular"
+          class="text-sm text-ink-muted"
+        >
           {{ entry.author }}
         </p>
       </li>

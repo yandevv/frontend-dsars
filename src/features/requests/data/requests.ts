@@ -79,6 +79,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         detail:
           'Comunicação confirmou em quais bases o contato ainda aparece e liberou a exclusão. O prontuário permanece por exigência do Conselho Federal de Medicina.',
         author: BEATRIZ,
+        internal: true,
       },
       {
         at: moment(-9, '11:12'),
@@ -86,6 +87,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         detail:
           'Pedido de levantamento das listas de campanha que ainda guardam telefone e e-mail promocional do titular.',
         author: BEATRIZ,
+        internal: true,
       },
       {
         at: moment(-12, '09:05'),
@@ -93,12 +95,14 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         detail:
           'Documento de identidade e comprovante de endereço legíveis, dentro da validade e coerentes com o cadastro.',
         author: BEATRIZ,
+        internal: true,
       },
       {
         at: moment(-14, '16:40'),
         title: 'Requisição atribuída',
         detail: `Distribuída pela fila de atendimento a ${BEATRIZ}, com 12 dias de prazo restantes.`,
         author: DPO_NAME,
+        internal: true,
       },
       {
         at: moment(-16, '10:05'),
@@ -333,6 +337,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         title: 'Arquivo de portabilidade gerado',
         detail: 'Exportação em CSV e JSON conferida antes do envio, sem dados de terceiros.',
         author: BEATRIZ,
+        internal: true,
       },
       {
         at: moment(-19, '09:10'),

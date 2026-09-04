@@ -2,15 +2,19 @@
 import BasePanel from '@/shared/ui/BasePanel.vue'
 import { findRight } from '@/shared/constants/lgpdRights'
 import type { DataRequest } from '@/features/requests/types/request'
+import type { RequestAudience } from '@/features/requests/types/audience'
 
 /** O pedido como o titular o escreveu, com os anexos que o acompanham (RF005 / RF012). */
 // NOTA: os códigos de requisito ficam em comentário, nunca na tela — quem usa o
 // sistema não tem por que ler a numeração do documento de requisitos do TCC.
-const { request } = defineProps<{ request: DataRequest }>()
+const { request, audience = 'encarregado' } = defineProps<{
+  request: DataRequest
+  audience?: RequestAudience
+}>()
 </script>
 
 <template>
-  <BasePanel eyebrow="Pedido do titular">
+  <BasePanel :eyebrow="audience === 'titular' ? 'Seu pedido' : 'Pedido do titular'">
     <div class="flex flex-col gap-5 px-[22px] pb-6 pt-[22px]">
       <p class="max-w-[76ch] text-[17px] leading-relaxed text-ink-body">
         {{ request.description }}
@@ -53,7 +57,7 @@ const { request } = defineProps<{ request: DataRequest }>()
         <h3
           class="border-b border-line px-4 py-3 font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft"
         >
-          Anexos do titular
+          {{ audience === 'titular' ? 'Anexos enviados' : 'Anexos do titular' }}
         </h3>
         <div
           v-for="attachment in request.attachments"

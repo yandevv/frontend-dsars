@@ -3,14 +3,18 @@ import BasePanel from '@/shared/ui/BasePanel.vue'
 import { REQUEST_OUTCOME_LABELS } from '@/features/requests/constants/requestStatus'
 import { formatDateTime } from '@/shared/utils/date'
 import type { RequestAnswer } from '@/features/requests/types/request'
+import type { RequestAudience } from '@/features/requests/types/audience'
 
 /** A resposta já enviada, em leitura: é o que o titular recebeu, palavra por palavra. */
-defineProps<{ answer: RequestAnswer }>()
+const { audience = 'encarregado' } = defineProps<{
+  answer: RequestAnswer
+  audience?: RequestAudience
+}>()
 </script>
 
 <template>
   <BasePanel
-    eyebrow="Resposta enviada ao titular"
+    :eyebrow="audience === 'titular' ? 'Resposta da organização' : 'Resposta enviada ao titular'"
     tone="brand"
   >
     <template #action>
@@ -37,7 +41,17 @@ defineProps<{ answer: RequestAnswer }>()
         </p>
       </div>
 
-      <p class="text-sm leading-relaxed text-ink-soft">
+      <p
+        v-if="audience === 'titular'"
+        class="text-sm leading-relaxed text-ink-soft"
+      >
+        Esta é a resposta final ao seu pedido. Se precisar reabrir o assunto, registre uma nova
+        requisição — ela nasce com prazo próprio.
+      </p>
+      <p
+        v-else
+        class="text-sm leading-relaxed text-ink-soft"
+      >
         O titular recebeu notificação no portal e por e-mail, e a pesquisa de satisfação desta
         requisição foi liberada.
       </p>

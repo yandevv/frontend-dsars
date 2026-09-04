@@ -5,6 +5,7 @@ import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy
 import { daysLeft, deadlineLabel, deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { formatDate } from '@/shared/utils/date'
 import type { DataRequest } from '@/features/requests/types/request'
+import type { RequestAudience } from '@/features/requests/types/audience'
 
 /**
  * O prazo legal em destaque (RF014).
@@ -12,7 +13,10 @@ import type { DataRequest } from '@/features/requests/types/request'
  * O número grande é relativo — "Venceu há 2 dias" —, mas a data absoluta vem
  * logo abaixo: é ela que vale no relatório à autoridade.
  */
-const { request } = defineProps<{ request: DataRequest }>()
+const { request, audience = 'encarregado' } = defineProps<{
+  request: DataRequest
+  audience?: RequestAudience
+}>()
 
 const situation = computed(() => deadlineStatusOf(request))
 
@@ -50,7 +54,9 @@ const detail = computed(() => {
     return `Encerrada ${slack} dias antes do prazo legal.`
   }
   if (request.status === 'cancelada' && request.closedAt) {
-    return `Cancelada pelo titular em ${formatDate(request.closedAt)}.`
+    return audience === 'titular'
+      ? `Você cancelou este pedido em ${formatDate(request.closedAt)}.`
+      : `Cancelada pelo titular em ${formatDate(request.closedAt)}.`
   }
   return `Prazo legal em ${formatDate(request.dueAt)} · registro em ${formatDate(request.registeredAt)}`
 })
@@ -73,7 +79,17 @@ const detail = computed(() => {
     <p class="text-[15px] text-ink-body">
       {{ detail }}
     </p>
-    <p class="text-sm leading-normal text-ink-soft">
+    <p
+      v-if="audience === 'titular'"
+      class="text-sm leading-normal text-ink-soft"
+    >
+      A organização tem até {{ LEGAL_DEADLINE_DAYS }} dias, contados do registro, para responder.
+      Um pedido de complemento não suspende a contagem.
+    </p>
+    <p
+      v-else
+      class="text-sm leading-normal text-ink-soft"
+    >
       {{ LEGAL_DEADLINE_DAYS }} dias contados do registro, como determina a LGPD. Atrasos entram
       no relatório trimestral à diretoria.
     </p>

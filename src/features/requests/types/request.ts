@@ -30,6 +30,11 @@ export interface RequestTimelineEntry {
   author: string
   /** O que acabou de acontecer, destacado no alto do histórico. */
   highlight?: boolean
+  /**
+   * Trabalho interno da equipe — notas, consultas a outras áreas, distribuição.
+   * Entra na trilha de auditoria, mas não aparece no histórico do titular.
+   */
+  internal?: boolean
 }
 
 /** Anotação que fica fora da resposta e não é visível ao titular. */
