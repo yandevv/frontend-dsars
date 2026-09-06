@@ -5,7 +5,8 @@ import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy
 import {
   RequestNotFoundError,
   answerRequest,
-  askForComplement,
+  MessageRuleError,
+  sendMessage,
   cancelRequests,
   createRequest,
   fetchRequest,
@@ -13,6 +14,10 @@ import {
 } from '../requestService'
 import { daysUntil } from '@/shared/utils/date'
 import { isUuidV7 } from '@/shared/utils/uuid'
+
+/** O último item — `Array.prototype.at` fica fora da versão da biblioteca do projeto. */
+const last = <T>(list: readonly T[]): T | undefined => list[list.length - 1]
+
 
 // A espera artificial existe para a tela mostrar o estado de envio; nos testes
 // só atrasaria a suíte.
@@ -60,26 +65,48 @@ describe('requestService', () => {
     await expect(fetchRequest('2026-000418')).rejects.toBeInstanceOf(RequestNotFoundError)
   })
 
-  it('encerra o atendimento e registra a resposta na trilha', async () => {
+  it('encerra o atendimento, registra a resposta na trilha e o parecer na conversa', async () => {
     const answered = await answerRequest(idOf('2026-000447'), {
       outcome: 'atendido',
       text: 'Segue a declaração completa dos dados que mantemos sobre você.',
+      attachments: [{ name: 'declaracao-completa.pdf', meta: 'PDF · 220 KB' }],
       author: 'Helena Prado Vasconcelos',
     })
 
     expect(answered.status).toBe('concluida')
     expect(answered.answer?.outcome).toBe('atendido')
+    expect(answered.answer?.attachments).toHaveLength(1)
     expect(answered.timeline[0]?.title).toContain('Atendimento finalizado')
     expect(answered.timeline[0]?.highlight).toBe(true)
+    expect(last(answered.messages)).toMatchObject({ kind: 'parecer', authorRole: 'encarregado' })
   })
 
-  it('pede complemento sem tirar a requisição da fila', async () => {
-    const waiting = await askForComplement(idOf('2026-000444'), {
-      detail: 'Precisamos de uma cópia do documento de identidade.',
+  it('não finaliza sem o resultado anexado', async () => {
+    await expect(
+      answerRequest(idOf('2026-000452'), { outcome: 'atendido', text: 'Feito.', attachments: [] }),
+    ).rejects.toMatchObject({ rule: 'sem-resultado' })
+  })
+
+  it('não finaliza de novo uma requisição encerrada', async () => {
+    await expect(
+      answerRequest(idOf('2026-000392'), {
+        outcome: 'atendido',
+        text: 'Uma segunda resposta.',
+        attachments: [{ name: 'x.pdf', meta: 'PDF' }],
+      }),
+    ).rejects.toBeInstanceOf(MessageRuleError)
+  })
+
+  it('pede complemento por mensagem sem tirar a requisição da fila', async () => {
+    const waiting = await sendMessage(idOf('2026-000444'), {
+      text: 'Precisamos de uma cópia do documento de identidade.',
+      kind: 'complemento',
+      actor: { name: 'Helena Prado Vasconcelos', role: 'encarregado' },
     })
 
     expect(waiting.status).toBe('aguardando-complemento')
     expect(waiting.closedAt).toBeUndefined()
+    expect(last(waiting.messages)?.kind).toBe('complemento')
   })
 
   it('cancela em lote com um motivo único e registra na trilha de cada uma', async () => {

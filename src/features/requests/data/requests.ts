@@ -54,6 +54,12 @@ const MARINA = {
   verifiedAt: moment(-16, '10:05'),
 }
 
+/** O resultado entregue na portabilidade, anexo ao parecer. */
+const PORTABILITY_FILE = {
+  name: 'portabilidade-2026-000392.zip',
+  meta: 'ZIP · 2,4 MB · CSV e JSON',
+}
+
 export const DEMO_REQUESTS: readonly DataRequest[] = [
   {
     protocol: '2026-000418',
@@ -135,6 +141,26 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         at: moment(-1, '08:30'),
       },
     ],
+    messages: [
+      {
+        id: 'msg-0418-1',
+        kind: 'mensagem',
+        author: BEATRIZ,
+        authorRole: 'encarregado',
+        text: 'Olá, Marina. Já localizamos seus dados de contato nas listas de campanhas. Você também quer que o telefone do prontuário deixe de receber lembretes de consulta, ou só as mensagens de campanha?',
+        attachments: [],
+        sentAt: moment(-6, '10:12'),
+      },
+      {
+        id: 'msg-0418-2',
+        kind: 'mensagem',
+        author: MARINA.name,
+        authorRole: 'titular',
+        text: 'Só as campanhas. Os lembretes de consulta podem continuar enquanto eu tiver exames agendados na rede.',
+        attachments: [],
+        sentAt: moment(-6, '18:40'),
+      },
+    ],
   },
   {
     protocol: '2026-000403',
@@ -176,6 +202,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
         at: moment(0, '07:10'),
       },
     ],
+    messages: [],
   },
   {
     protocol: '2026-000431',
@@ -220,6 +247,17 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       },
     ],
     notes: [],
+    messages: [
+      {
+        id: 'msg-0431-1',
+        kind: 'complemento',
+        author: BEATRIZ,
+        authorRole: 'encarregado',
+        text: 'Para corrigir a grafia em todos os registros, precisamos de uma foto legível do seu documento de identidade, frente e verso. Pode anexar aqui mesmo.',
+        attachments: [],
+        sentAt: moment(-4, '09:30'),
+      },
+    ],
   },
   {
     protocol: '2026-000444',
@@ -250,6 +288,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       },
     ],
     notes: [],
+    messages: [],
   },
   {
     protocol: '2026-000447',
@@ -278,6 +317,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       },
     ],
     notes: [],
+    messages: [],
   },
   {
     protocol: '2026-000452',
@@ -308,6 +348,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       },
     ],
     notes: [],
+    messages: [],
   },
   {
     protocol: '2026-000392',
@@ -353,8 +394,20 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       },
     ],
     notes: [],
+    messages: [
+      {
+        id: 'msg-0392-1',
+        kind: 'parecer',
+        author: BEATRIZ,
+        authorRole: 'encarregado',
+        text: 'Geramos o arquivo com o histórico de consultas, exames e prescrições realizados na rede entre 2021 e 2026, em CSV e em JSON, prontos para importação por outro prestador. O arquivo fica disponível para download por 30 dias na própria requisição; depois disso, basta abrir um novo pedido.',
+        attachments: [PORTABILITY_FILE],
+        sentAt: moment(-15, '17:26'),
+      },
+    ],
     answer: {
       outcome: 'atendido',
+      attachments: [PORTABILITY_FILE],
       text: 'Geramos o arquivo com o histórico de consultas, exames e prescrições realizados na rede entre 2021 e 2026, em CSV e em JSON, prontos para importação por outro prestador. O arquivo fica disponível para download por 30 dias na própria requisição; depois disso, basta abrir um novo pedido.',
       sentAt: moment(-15, '17:26'),
       author: BEATRIZ,
@@ -390,6 +443,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       },
     ],
     notes: [],
+    messages: [],
   },
 ]
 

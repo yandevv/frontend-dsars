@@ -11,6 +11,23 @@ const PORTABILIDADE = '/painel/requisicoes/01a07bbe-0b9a-7632-97a6-76d3d14bcea8'
 const ANSWER =
   'Eliminamos seus dados de contato das bases de comunicação e marketing da rede, incluindo telefone e e-mail promocional. Os registros clínicos foram mantidos porque a guarda do prontuário é obrigação legal.'
 
+/** O painel de finalização: a página tem outro formulário, o da conversa. */
+function answerPanel() {
+  return cy.contains('h2', 'Finalizar atendimento').parents('section').first()
+}
+
+/** A conversa da requisição, com o campo de envio. */
+function thread() {
+  return cy.contains('h2', 'Mensagens').parents('section').first()
+}
+
+/** O resultado do atendimento, anexado como o seletor de arquivos faria. */
+const RESULT = {
+  contents: Cypress.Buffer.from('%PDF-1.4 comprovante'),
+  fileName: 'comprovante-eliminacao.pdf',
+  mimeType: 'application/pdf',
+}
+
 /** O histórico: a primeira <ol> da página é a trilha do "você está em". */
 function timeline() {
   return cy.contains('h2', 'Histórico e auditoria').parents('section').first().find('ol li')
@@ -60,11 +77,14 @@ describe('Detalhe da requisição', () => {
     cy.contains('button', 'Finalizar atendimento').click()
     cy.contains('Resposta ao titular').should('be.visible')
 
-    cy.get('input[value="recusado"]').check()
-    cy.contains('Justificativa ao titular').should('be.visible')
-    cy.get('form textarea').type(ANSWER)
-    cy.get('form input[type="checkbox"]').check()
-    cy.get('form').contains('button', 'Finalizar atendimento').click()
+    answerPanel().within(() => {
+      cy.get('input[value="recusado"]').check()
+      cy.contains('Justificativa ao titular').should('be.visible')
+      cy.get('textarea').type(ANSWER)
+      cy.get('input[type="file"]').selectFile(RESULT, { force: true })
+      cy.get('input[type="checkbox"]').check()
+      cy.contains('button', 'Finalizar atendimento').click()
+    })
 
     cy.contains('Campo obrigatório para o desfecho recusado.').should('be.visible')
     cy.contains('Resposta enviada ao titular').should('not.exist')
@@ -73,10 +93,16 @@ describe('Detalhe da requisição', () => {
   it('finaliza o atendimento, publica a resposta e tira as ações da tela', () => {
     cy.contains('button', 'Finalizar atendimento').click()
 
-    cy.get('input[value="parcialmente-atendido"]').check()
-    cy.get('form textarea').type(ANSWER)
-    cy.get('form input[type="checkbox"]').check()
-    cy.get('form').contains('button', 'Finalizar atendimento').click()
+    answerPanel().within(() => {
+      cy.get('input[value="parcialmente-atendido"]').check()
+      cy.get('textarea').type(ANSWER)
+      cy.get('input[type="checkbox"]').check()
+      cy.contains('button', 'Finalizar atendimento').click()
+      cy.contains('Anexe pelo menos um arquivo com o resultado do atendimento.').should('be.visible')
+
+      cy.get('input[type="file"]').selectFile(RESULT, { force: true })
+      cy.contains('button', 'Finalizar atendimento').click()
+    })
 
     cy.contains('Atendimento finalizado').should('be.visible')
     cy.contains('Resposta enviada ao titular').should('be.visible')
@@ -86,12 +112,24 @@ describe('Detalhe da requisição', () => {
     cy.get('main').contains('button', 'Pedir complemento').should('not.exist')
 
     timeline().first().should('contain.text', 'Atendimento finalizado')
+    thread().should('contain.text', 'Parecer final')
+    thread().should('contain.text', 'comprovante-eliminacao.pdf')
+    thread().should('contain.text', 'não recebe novas mensagens')
+    thread().find('form').should('not.exist')
   })
 
   it('pede complemento sem encerrar o atendimento — o prazo não para', () => {
     cy.contains('button', 'Pedir complemento').click()
 
+    thread().within(() => {
+      cy.focused().should('match', 'textarea')
+      cy.contains('Pedido de complemento ao titular').should('be.visible')
+      cy.get('textarea').type('Precisamos de uma foto legível do documento de identidade.')
+      cy.contains('button', 'Enviar pedido de complemento').click()
+    })
+
     cy.contains('Complemento solicitado ao titular').should('be.visible')
+    thread().should('contain.text', 'Precisamos de uma foto legível do documento de identidade.')
     cy.contains('o prazo legal segue correndo').should('be.visible')
     cy.contains('Aguardando complemento').should('be.visible')
     cy.contains('button', 'Finalizar atendimento').should('be.visible')

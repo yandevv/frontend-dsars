@@ -49,12 +49,50 @@ describe("Detalhe da requisição (titular)", () => {
     cy.contains("Requisição cancelada pelo titular").should("be.visible");
   });
 
+  it("conversa com a equipe: envia, edita com confirmação e exclui a própria mensagem", () => {
+    cy.visit(ELIMINACAO);
+    const thread = () => cy.contains("h2", "Mensagens").parents("section").first();
+
+    thread().should("contain.text", "Já localizamos seus dados de contato");
+    thread().within(() => {
+      cy.get("form textarea").type("Posso receber o comprovante por e-mail também?");
+      cy.contains("button", "Enviar mensagem").click();
+      cy.contains("li", "Posso receber o comprovante").should("contain.text", "Você");
+
+      cy.contains("li", "Posso receber o comprovante").contains("button", "Editar").click();
+      cy.get("ol textarea").clear();
+      cy.get("ol textarea").type("Posso receber o comprovante pelo portal mesmo?");
+      cy.contains("button", "Salvar alteração").click();
+    });
+    cy.get('[role="dialog"]').contains("button", "Salvar alteração").click();
+    thread().contains("li", "pelo portal mesmo").should("contain.text", "editada");
+
+    thread().contains("li", "pelo portal mesmo").contains("button", "Excluir").click();
+    cy.get('[role="dialog"]').contains("button", "Excluir mensagem").click();
+    thread().should("not.contain.text", "pelo portal mesmo");
+  });
+
+  it("não deixa mexer nas mensagens da equipe", () => {
+    cy.visit(ELIMINACAO);
+
+    cy.contains("h2", "Mensagens")
+      .parents("section")
+      .first()
+      .contains("li", "Já localizamos seus dados de contato")
+      .within(() => {
+        cy.contains("button", "Editar").should("not.exist");
+        cy.contains("button", "Excluir").should("not.exist");
+      });
+  });
+
   it("mostra a resposta de uma requisição concluída e deixa baixá-la", () => {
     cy.visit(PORTABILIDADE);
 
     cy.contains("h2", "Resposta da organização").should("be.visible");
     cy.contains("button", "Baixar a resposta").should("be.visible");
     cy.contains("button", "Cancelar requisição").should("not.exist");
+    cy.contains("Parecer final").should("be.visible");
+    cy.contains("não recebe novas mensagens").should("be.visible");
   });
 
   it("trata a requisição de outra pessoa como inexistente", () => {

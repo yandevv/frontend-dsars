@@ -1,10 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { mount, RouterLinkStub } from '@vue/test-utils'
 
+import AttachmentPicker from '../AttachmentPicker.vue'
 import RequestAnswerPanel from '../RequestAnswerPanel.vue'
 
 const ANSWER =
   'Eliminamos seus dados de contato das bases de comunicação da rede. O prontuário permanece por obrigação legal.'
+
+const RESULT = { name: 'comprovante-eliminacao.pdf', meta: 'PDF · 120 KB' }
+
+/** O seletor lê arquivos do aparelho; aqui entra direto o que ele entregaria. */
+async function attachResult(wrapper: ReturnType<typeof render>) {
+  wrapper.findComponent(AttachmentPicker).vm.$emit('update:modelValue', [RESULT])
+  await wrapper.vm.$nextTick()
+}
 
 function render() {
   return mount(RequestAnswerPanel, {
@@ -93,11 +102,13 @@ describe('RequestAnswerPanel', () => {
     await wrapper.find('textarea').setValue(ANSWER)
     await wrapper.find('select').setValue('Obrigação legal ou regulatória do controlador')
     await wrapper.find('input[type="checkbox"]').setValue(true)
+    await attachResult(wrapper)
     await wrapper.find('form').trigger('submit')
 
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       outcome: 'recusado',
       legalBasis: 'Obrigação legal ou regulatória do controlador',
+      attachments: [RESULT],
     })
   })
 
@@ -109,11 +120,24 @@ describe('RequestAnswerPanel', () => {
     await wrapper.find('input[value="atendido"]').setValue()
     await wrapper.find('textarea').setValue(ANSWER)
     await wrapper.find('input[type="checkbox"]').setValue(true)
+    await attachResult(wrapper)
     await wrapper.find('form').trigger('submit')
 
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
       outcome: 'atendido',
       legalBasis: undefined,
     })
+  })
+
+  it('não finaliza sem o resultado do atendimento anexado', async () => {
+    const wrapper = render()
+
+    await wrapper.find('input[value="atendido"]').setValue()
+    await wrapper.find('textarea').setValue(ANSWER)
+    await wrapper.find('input[type="checkbox"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')).toBeUndefined()
+    expect(wrapper.text()).toContain('Anexe pelo menos um arquivo com o resultado do atendimento.')
   })
 })

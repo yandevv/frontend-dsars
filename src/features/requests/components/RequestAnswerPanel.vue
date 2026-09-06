@@ -29,7 +29,14 @@ const { sending = false } = defineProps<{ sending?: boolean }>()
 
 const emit = defineEmits<{
   close: []
-  submit: [{ outcome: RequestOutcome; text: string; legalBasis?: string }]
+  submit: [
+    {
+      outcome: RequestOutcome
+      text: string
+      legalBasis?: string
+      attachments: RequestAttachment[]
+    },
+  ]
 }>()
 
 const outcomes: { value: RequestOutcome; detail: string }[] = [
@@ -52,8 +59,16 @@ const acknowledgeId = useId()
 const refused = computed(() => outcome.value === 'recusado')
 const textOk = computed(() => text.value.trim().length >= ANSWER_MIN_LENGTH)
 const basisOk = computed(() => !refused.value || legalBasis.value !== '')
+// O parecer vai acompanhado do resultado entregue: sem anexo não há o que
+// comprovar diante do titular ou da autoridade.
+const attachmentsOk = computed(() => attachments.value.length > 0)
 const isComplete = computed(
-  () => outcome.value !== null && textOk.value && basisOk.value && acknowledged.value,
+  () =>
+    outcome.value !== null &&
+    textOk.value &&
+    basisOk.value &&
+    attachmentsOk.value &&
+    acknowledged.value,
 )
 
 const groundOptions = computed(() => [
@@ -103,6 +118,7 @@ async function submit() {
     outcome: outcome.value,
     text: text.value,
     legalBasis: refused.value ? legalBasis.value : undefined,
+    attachments: [...attachments.value],
   })
 }
 </script>
@@ -138,7 +154,7 @@ async function submit() {
           <BaseAlert title="Ainda não é possível finalizar o atendimento">
             <p>
               A resposta vai íntegra ao titular e entra na trilha de auditoria: confira o desfecho,
-              o texto e a confirmação antes de enviar.
+              o texto, o resultado anexado e a confirmação antes de enviar.
             </p>
           </BaseAlert>
         </div>
@@ -223,12 +239,19 @@ async function submit() {
           v-model="attachments"
           label="Anexos da resposta"
           prompt="Anexar arquivos à resposta"
-          empty-hint="Nenhum arquivo anexado. A resposta pode ser enviada apenas com o texto."
+          :optional="false"
+          empty-hint="Anexe o resultado entregue ao titular: relatório, comprovante de eliminação ou arquivo de portabilidade."
           :accept="ANSWER_ATTACHMENT_ACCEPT"
           :rule="ANSWER_ATTACHMENT_RULE"
           :max-bytes="ANSWER_ATTACHMENT_MAX_BYTES"
           :disabled="sending"
         />
+        <p
+          v-if="attempted && !attachmentsOk"
+          class="-mt-4 text-[13px] leading-normal text-danger"
+        >
+          Anexe pelo menos um arquivo com o resultado do atendimento.
+        </p>
 
         <label
           :for="acknowledgeId"

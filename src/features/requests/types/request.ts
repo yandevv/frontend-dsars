@@ -56,12 +56,46 @@ export interface RequestSubject {
   verifiedAt?: string
 }
 
+/** Quem escreveu uma mensagem, pelo papel que ocupa na requisição. */
+export type MessageAuthorRole = 'titular' | 'encarregado'
+
+/**
+ * O que a mensagem representa na conversa.
+ *
+ * `complemento` é o pedido de informação que põe a requisição em espera do
+ * titular; `parecer` é a resposta conclusiva que encerra o atendimento.
+ */
+export type MessageKind = 'mensagem' | 'complemento' | 'parecer'
+
+/** Quem está agindo sobre a conversa: o nome identifica, o papel autoriza. */
+export interface MessageActor {
+  name: string
+  role: MessageAuthorRole
+}
+
+/** Uma mensagem trocada dentro da requisição (RF006 / RF012). */
+export interface RequestMessage {
+  id: string
+  kind: MessageKind
+  author: string
+  authorRole: MessageAuthorRole
+  text: string
+  attachments: readonly RequestAttachment[]
+  sentAt: string
+  /** Presente depois de uma edição — a conversa sinaliza, a trilha guarda o original. */
+  editedAt?: string
+  /** Excluída some da conversa, mas continua registrada na trilha de auditoria. */
+  deletedAt?: string
+}
+
 /** Resposta enviada ao titular ao encerrar o atendimento. */
 export interface RequestAnswer {
   outcome: RequestOutcome
   text: string
   /** Obrigatório quando o desfecho é recusa: sem ele não há como sustentá-la. */
   legalBasis?: string
+  /** O resultado entregue — relatório, comprovante, arquivo de portabilidade. */
+  attachments?: readonly RequestAttachment[]
   sentAt: string
   author: string
 }
@@ -93,6 +127,8 @@ export interface DataRequest {
   attachments: readonly RequestAttachment[]
   timeline: readonly RequestTimelineEntry[]
   notes: readonly InternalNote[]
+  /** A conversa entre titular e equipe, na ordem em que foi escrita. */
+  messages: readonly RequestMessage[]
   answer?: RequestAnswer
   /**
    * Nota de 1 a 5 da pesquisa de satisfação (RF011).

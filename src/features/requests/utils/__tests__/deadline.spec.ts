@@ -18,6 +18,7 @@ function request(dueInDays: number, status: RequestStatus = 'em-analise'): DataR
     attachments: [],
     timeline: [],
     notes: [],
+    messages: [],
   }
 }
 

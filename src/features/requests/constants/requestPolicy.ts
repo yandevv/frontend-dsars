@@ -17,6 +17,12 @@ export const DESCRIPTION_MAX_LENGTH = 2000
 export const CANCEL_REASON_MIN_LENGTH = 10
 export const CANCEL_REASON_MAX_LENGTH = 500
 
+/** Mensagens da requisição: texto até 2.000 caracteres, ou só anexo. */
+export const MESSAGE_MAX_LENGTH = 2000
+
+/** Depois deste tempo a mensagem não pode mais ser editada — só excluída. */
+export const MESSAGE_EDIT_WINDOW_MINUTES = 30
+
 export const ANSWER_MIN_LENGTH = 40
 export const ANSWER_MAX_LENGTH = 4000
 

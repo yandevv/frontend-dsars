@@ -29,6 +29,23 @@ const { audience = 'encarregado' } = defineProps<{
         {{ answer.text }}
       </p>
 
+      <ul
+        v-if="answer.attachments?.length"
+        class="flex flex-col gap-2"
+      >
+        <li
+          v-for="attachment in answer.attachments"
+          :key="attachment.name"
+          class="flex flex-wrap items-center justify-between gap-3 border border-line px-4 py-2.5"
+        >
+          <span class="flex flex-col gap-0.5">
+            <span class="text-[15px] font-semibold text-ink">{{ attachment.name }}</span>
+            <span class="text-[13px] text-ink-muted">{{ attachment.meta }}</span>
+          </span>
+          <span class="text-[15px] font-medium text-brand">Baixar</span>
+        </li>
+      </ul>
+
       <div
         v-if="answer.legalBasis"
         class="flex flex-col gap-1 border-l-[3px] border-line py-1 pl-4"

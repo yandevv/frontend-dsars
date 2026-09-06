@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { useRoute } from "vue-router";
 
 import AppBreadcrumb from "@/shared/layout/AppBreadcrumb.vue";
@@ -7,6 +7,7 @@ import AppShell from "@/shared/layout/AppShell.vue";
 import BaseButton from "@/shared/ui/BaseButton.vue";
 import CancelRequestsDialog from "@/features/requests/components/CancelRequestsDialog.vue";
 import RequestDeadlineCard from "@/features/requests/components/RequestDeadlineCard.vue";
+import RequestMessages from "@/features/requests/components/RequestMessages.vue";
 import RequestSentAnswer from "@/features/requests/components/RequestSentAnswer.vue";
 import RequestStatusChip from "@/features/requests/components/RequestStatusChip.vue";
 import RequestSubjectRequest from "@/features/requests/components/RequestSubjectRequest.vue";
@@ -17,8 +18,9 @@ import { downloadText } from "@/shared/utils/download";
 import { findRight } from "@/shared/constants/lgpdRights";
 import { formatDate, formatDateTime } from "@/shared/utils/date";
 import { normalizeEmail } from "@/features/auth/data/accounts";
+import { useRequestMessages } from "@/features/requests/composables/useRequestMessages";
 import { useSession } from "@/features/auth/composables/useSession";
-import type { DataRequest } from "@/features/requests/types/request";
+import type { DataRequest, RequestAttachment } from "@/features/requests/types/request";
 
 /**
  * Detalhe da requisição, visão do titular (RF005).
@@ -39,6 +41,23 @@ const cancelling = ref(false);
 const notice = ref<{ title: string; text: string } | null>(null);
 
 const open = computed(() => (request.value ? isOpen(request.value.status) : false));
+
+const viewer = computed(() => ({ name: account.value.name, role: "titular" as const }));
+const messages = useRequestMessages(request, viewer);
+const messagesPanel = useTemplateRef<InstanceType<typeof RequestMessages>>("messagesPanel");
+
+async function sendMessage(message: { text: string; attachments: RequestAttachment[] }) {
+  const answeringComplement = request.value?.status === "aguardando-complemento";
+  if (!(await messages.send(message))) return;
+
+  messagesPanel.value?.reset();
+  if (answeringComplement) {
+    notice.value = {
+      title: "Complemento enviado",
+      text: "A equipe recebeu sua resposta e a requisição voltou para análise.",
+    };
+  }
+}
 
 const rightLabel = computed(() =>
   request.value ? (findRight(request.value.rightNumeral)?.requestLabel ?? "") : "",
@@ -209,6 +228,24 @@ function downloadAnswer() {
             <RequestSentAnswer v-if="request.answer" :answer="request.answer" audience="titular" />
 
             <RequestSubjectRequest :request="request" audience="titular" />
+
+            <p
+              v-if="messages.error.value"
+              role="alert"
+              class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body"
+            >
+              {{ messages.error.value }}
+            </p>
+            <RequestMessages
+              ref="messagesPanel"
+              :messages="request.messages"
+              :viewer="viewer"
+              :open="open"
+              :sending="messages.sending.value"
+              @send="sendMessage"
+              @edit="messages.edit"
+              @remove="messages.remove"
+            />
 
             <RequestTimeline :entries="request.timeline" audience="titular" />
           </div>

@@ -9,6 +9,7 @@ import RequestAnswerPanel from "@/features/requests/components/RequestAnswerPane
 import RequestAssigneeCard from "@/features/requests/components/RequestAssigneeCard.vue";
 import RequestDeadlineCard from "@/features/requests/components/RequestDeadlineCard.vue";
 import RequestInternalNotes from "@/features/requests/components/RequestInternalNotes.vue";
+import RequestMessages from "@/features/requests/components/RequestMessages.vue";
 import RequestSentAnswer from "@/features/requests/components/RequestSentAnswer.vue";
 import RequestStatusChip from "@/features/requests/components/RequestStatusChip.vue";
 import RequestSubjectCard from "@/features/requests/components/RequestSubjectCard.vue";
@@ -22,12 +23,17 @@ import { formatDate } from "@/shared/utils/date";
 import { isOpen } from "@/features/requests/constants/requestStatus";
 import {
   answerRequest,
-  askForComplement,
   fetchRequest,
   listRequests,
   reassignRequest,
 } from "@/features/requests/services/requestService";
-import type { DataRequest, RequestOutcome } from "@/features/requests/types/request";
+import { useRequestMessages } from "@/features/requests/composables/useRequestMessages";
+import { useSession } from "@/features/auth/composables/useSession";
+import type {
+  DataRequest,
+  RequestAttachment,
+  RequestOutcome,
+} from "@/features/requests/types/request";
 
 /**
  * Turno 1 · Tela 11 — Detalhe da requisição na visão do encarregado
@@ -39,6 +45,7 @@ import type { DataRequest, RequestOutcome } from "@/features/requests/types/requ
  * com registro na trilha.
  */
 const route = useRoute();
+const { account } = useSession("encarregado");
 
 const request = ref<DataRequest | null>(null);
 const others = ref<readonly DataRequest[]>([]);
@@ -56,6 +63,36 @@ const open = computed(() => (request.value ? isOpen(request.value.status) : fals
 // No celular a finalização cobre a tela inteira; o foco vai para ela ao abrir
 // para que o leitor de tela não fique preso no botão que sumiu atrás.
 const answerSheet = useTemplateRef<HTMLElement>("answerSheet");
+
+// ── Conversa ─────────────────────────────────────────────────────────────────
+const viewer = computed(() => ({ name: account.value.name, role: "encarregado" as const }));
+const messages = useRequestMessages(request, viewer);
+const messagesPanel = useTemplateRef<InstanceType<typeof RequestMessages>>("messagesPanel");
+
+/** Pedir complemento é escrever ao titular: o campo da conversa muda de modo. */
+const complementMode = ref(false);
+
+async function askForComplement() {
+  complementMode.value = true;
+  panelOpen.value = false;
+  await nextTick();
+  messagesPanel.value?.focus();
+}
+
+async function sendMessage(message: { text: string; attachments: RequestAttachment[] }) {
+  const kind = complementMode.value ? "complemento" : "mensagem";
+  if (!(await messages.send(message, kind))) return;
+
+  messagesPanel.value?.reset();
+  complementMode.value = false;
+  if (kind === "complemento") {
+    notice.value = {
+      title: "Complemento solicitado ao titular",
+      text: "A requisição continua na fila e o prazo legal segue correndo. Finalizar atendimento permanece disponível.",
+      tone: "ok",
+    };
+  }
+}
 
 async function openPanel() {
   panelOpen.value = true;
@@ -125,13 +162,20 @@ watch(
   { immediate: true },
 );
 
-async function finish(answer: { outcome: RequestOutcome; text: string; legalBasis?: string }) {
+async function finish(answer: {
+  outcome: RequestOutcome;
+  text: string;
+  legalBasis?: string;
+  attachments: RequestAttachment[];
+}) {
   const current = request.value;
   if (!current || sending.value) return;
 
   sending.value = true;
   try {
-    request.value = { ...(await answerRequest(current.id, answer)) };
+    request.value = {
+      ...(await answerRequest(current.id, { ...answer, author: account.value.name })),
+    };
     panelOpen.value = false;
     notice.value = {
       title: "Atendimento finalizado",
@@ -141,24 +185,6 @@ async function finish(answer: { outcome: RequestOutcome; text: string; legalBasi
   } finally {
     sending.value = false;
   }
-}
-
-async function requestComplement() {
-  const current = request.value;
-  if (!current) return;
-
-  request.value = {
-    ...(await askForComplement(current.id, {
-      detail:
-        "Pedido enviado pelo portal e por e-mail. O prazo legal continua correndo enquanto se espera a resposta.",
-    })),
-  };
-  panelOpen.value = false;
-  notice.value = {
-    title: "Complemento solicitado ao titular",
-    text: "A requisição continua na fila e o prazo legal segue correndo. Finalizar atendimento permanece disponível.",
-    tone: "ok",
-  };
 }
 
 async function reassign(to: string) {
@@ -219,7 +245,7 @@ async function reassign(to: string) {
             v-if="open"
             class="flex w-full flex-col-reverse gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center"
           >
-            <BaseButton variant="secondary" block class="sm:w-auto" @click="requestComplement">
+            <BaseButton variant="secondary" block class="sm:w-auto" @click="askForComplement">
               Pedir complemento
             </BaseButton>
             <BaseButton block class="sm:w-auto" @click="openPanel">
@@ -285,6 +311,22 @@ async function reassign(to: string) {
             </div>
 
             <RequestSentAnswer v-if="request.answer" :answer="request.answer" />
+
+            <p v-if="messages.error.value" role="alert" class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body">
+              {{ messages.error.value }}
+            </p>
+            <RequestMessages
+              ref="messagesPanel"
+              :messages="request.messages"
+              :viewer="viewer"
+              :open="open"
+              :mode="complementMode ? 'complemento' : 'mensagem'"
+              :sending="messages.sending.value"
+              @send="sendMessage"
+              @edit="messages.edit"
+              @remove="messages.remove"
+              @cancel-complement="complementMode = false"
+            />
 
             <RequestTimeline :entries="request.timeline" />
 

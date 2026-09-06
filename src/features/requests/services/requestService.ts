@@ -3,17 +3,23 @@ import { DPO_NAME } from '@/features/requests/data/team'
 import {
   CANCEL_REASON_MIN_LENGTH,
   LEGAL_DEADLINE_DAYS,
+  MESSAGE_MAX_LENGTH,
 } from '@/features/requests/constants/requestPolicy'
 import { REQUEST_OUTCOME_LABELS, isOpen } from '@/features/requests/constants/requestStatus'
 import { addDays, formatDate } from '@/shared/utils/date'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { uuidv7 } from '@/shared/utils/uuid'
+import { canEditMessage } from '@/features/requests/utils/messages'
 import type {
   DataRequest,
+  MessageActor,
+  MessageKind,
   NewRequest,
   RequestAnswer,
   RequestOutcome,
+  RequestAttachment,
+  RequestMessage,
   RequestReceipt,
   RequestSubject,
 } from '@/features/requests/types/request'
@@ -98,6 +104,7 @@ export async function createRequest(
       },
     ],
     notes: [],
+    messages: [],
   })
 
   return {
@@ -110,36 +117,150 @@ export async function createRequest(
   }
 }
 
-/** Encerra o atendimento com a resposta ao titular (RF013). */
-export async function answerRequest(
+/**
+ * Por que uma operação sobre mensagens foi recusada.
+ *
+ * As mesmas regras valem no servidor; aqui elas existem para que a tela possa
+ * explicar a recusa em vez de só falhar.
+ */
+export type MessageRule =
+  | 'requisicao-encerrada'
+  | 'nao-e-autor'
+  | 'prazo-de-edicao'
+  | 'mensagem-vazia'
+  | 'mensagem-longa'
+  | 'sem-resultado'
+
+export class MessageRuleError extends Error {
+  constructor(readonly rule: MessageRule) {
+    super(rule)
+    this.name = 'MessageRuleError'
+  }
+}
+
+function assertOpen(request: DataRequest) {
+  if (!isOpen(request.status)) throw new MessageRuleError('requisicao-encerrada')
+}
+
+function assertContent(text: string, attachments: readonly RequestAttachment[]) {
+  if (text.length > MESSAGE_MAX_LENGTH) throw new MessageRuleError('mensagem-longa')
+  if (text.length === 0 && attachments.length === 0) throw new MessageRuleError('mensagem-vazia')
+}
+
+function findMessage(request: DataRequest, messageId: string, actor: MessageActor): RequestMessage {
+  const message = request.messages.find((item) => item.id === messageId && !item.deletedAt)
+  if (!message) throw new MessageRuleError('nao-e-autor')
+  if (message.authorRole !== actor.role || message.author !== actor.name) {
+    throw new MessageRuleError('nao-e-autor')
+  }
+  return message
+}
+
+/**
+ * Registra uma mensagem na conversa (RF006).
+ *
+ * Duas mensagens mexem no estado: o pedido de complemento põe a requisição à
+ * espera do titular, e a primeira mensagem do titular depois dele a devolve à
+ * análise. Em nenhum dos dois casos o prazo para.
+ */
+export async function sendMessage(
   id: string,
-  answer: { outcome: RequestOutcome; text: string; legalBasis?: string; author?: string },
+  {
+    text,
+    attachments = [],
+    actor,
+    kind = 'mensagem',
+  }: {
+    text: string
+    attachments?: readonly RequestAttachment[]
+    actor: MessageActor
+    kind?: Exclude<MessageKind, 'parecer'>
+  },
 ): Promise<DataRequest> {
   await delay()
 
   const request = find(id)
+  assertOpen(request)
+
+  const content = text.trim()
+  assertContent(content, attachments)
 
   const sentAt = new Date().toISOString()
-  const author = answer.author ?? DPO_NAME
-  const sent: RequestAnswer = {
-    outcome: answer.outcome,
-    text: answer.text.trim(),
-    legalBasis: answer.legalBasis,
-    sentAt,
-    author,
+  request.messages = [
+    ...request.messages,
+    {
+      id: uuidv7(),
+      kind,
+      author: actor.name,
+      authorRole: actor.role,
+      text: content,
+      attachments: [...attachments],
+      sentAt,
+    },
+  ]
+
+  if (kind === 'complemento') {
+    request.status = 'aguardando-complemento'
+    request.timeline = [
+      {
+        at: sentAt,
+        title: 'Complemento solicitado ao titular',
+        detail: 'Pedido enviado pelo portal e por e-mail. O prazo legal continua correndo.',
+        author: actor.name,
+        highlight: true,
+      },
+      ...request.timeline,
+    ]
+  } else if (actor.role === 'titular' && request.status === 'aguardando-complemento') {
+    request.status = 'em-analise'
+    request.timeline = [
+      {
+        at: sentAt,
+        title: 'Complemento enviado pelo titular',
+        detail: 'A requisição voltou para análise. O prazo legal seguiu correndo durante a espera.',
+        author: 'Titular',
+        highlight: true,
+      },
+      ...request.timeline,
+    ]
   }
 
-  request.status = 'concluida'
-  request.closedAt = sentAt
-  request.answer = sent
+  return request
+}
+
+/**
+ * Corrige o texto de uma mensagem própria, dentro da janela de edição (RF013).
+ *
+ * A conversa passa a mostrar a mensagem como editada; o texto anterior fica
+ * na trilha de auditoria, que não é editável por ninguém.
+ */
+export async function editMessage(
+  id: string,
+  messageId: string,
+  { text, actor }: { text: string; actor: MessageActor },
+  now: Date = new Date(),
+): Promise<DataRequest> {
+  await delay()
+
+  const request = find(id)
+  assertOpen(request)
+  const message = findMessage(request, messageId, actor)
+  if (!canEditMessage(message, now)) throw new MessageRuleError('prazo-de-edicao')
+
+  const content = text.trim()
+  assertContent(content, message.attachments)
+
+  const editedAt = now.toISOString()
+  request.messages = request.messages.map((item) =>
+    item.id === messageId ? { ...item, text: content, editedAt } : item,
+  )
   request.timeline = [
     {
-      at: sentAt,
-      title: `Atendimento finalizado · ${REQUEST_OUTCOME_LABELS[answer.outcome]}`,
-      detail:
-        'Resposta enviada ao titular e notificação disparada. Pesquisa de satisfação liberada.',
-      author,
-      highlight: true,
+      at: editedAt,
+      title: 'Mensagem editada',
+      detail: `Texto anterior: “${message.text}”`,
+      author: actor.role === 'titular' ? 'Titular' : actor.name,
+      internal: true,
     },
     ...request.timeline,
   ]
@@ -147,22 +268,96 @@ export async function answerRequest(
   return request
 }
 
-/** Mantém a requisição na fila à espera do titular — o prazo não para. */
-export async function askForComplement(
+/**
+ * Tira uma mensagem própria da conversa (RF014).
+ *
+ * Nada é apagado de fato: a mensagem some para os participantes e o conteúdo
+ * continua na trilha, para prestação de contas.
+ */
+export async function deleteMessage(
   id: string,
-  { detail, author = DPO_NAME }: { detail: string; author?: string },
+  messageId: string,
+  { actor }: { actor: MessageActor },
 ): Promise<DataRequest> {
   await delay()
 
   const request = find(id)
+  assertOpen(request)
+  const message = findMessage(request, messageId, actor)
 
-  const at = new Date().toISOString()
-  request.status = 'aguardando-complemento'
+  const deletedAt = new Date().toISOString()
+  request.messages = request.messages.map((item) =>
+    item.id === messageId ? { ...item, deletedAt } : item,
+  )
   request.timeline = [
     {
-      at,
-      title: 'Complemento solicitado ao titular',
-      detail,
+      at: deletedAt,
+      title: 'Mensagem excluída',
+      detail: `Conteúdo removido da conversa: “${message.text || 'mensagem só com anexo'}”`,
+      author: actor.role === 'titular' ? 'Titular' : actor.name,
+      internal: true,
+    },
+    ...request.timeline,
+  ]
+
+  return request
+}
+
+/**
+ * Encerra o atendimento com o parecer conclusivo (RF007).
+ *
+ * O parecer entra na conversa como a última mensagem, com o resultado anexado,
+ * e a partir daí a requisição não aceita mais mensagens nem reabertura.
+ */
+export async function answerRequest(
+  id: string,
+  answer: {
+    outcome: RequestOutcome
+    text: string
+    legalBasis?: string
+    attachments: readonly RequestAttachment[]
+    author?: string
+  },
+): Promise<DataRequest> {
+  await delay()
+
+  const request = find(id)
+  assertOpen(request)
+  if (answer.attachments.length === 0) throw new MessageRuleError('sem-resultado')
+
+  const sentAt = new Date().toISOString()
+  const author = answer.author ?? DPO_NAME
+  const text = answer.text.trim()
+  const sent: RequestAnswer = {
+    outcome: answer.outcome,
+    text,
+    legalBasis: answer.legalBasis,
+    attachments: [...answer.attachments],
+    sentAt,
+    author,
+  }
+
+  request.status = 'concluida'
+  request.closedAt = sentAt
+  request.answer = sent
+  request.messages = [
+    ...request.messages,
+    {
+      id: uuidv7(),
+      kind: 'parecer',
+      author,
+      authorRole: 'encarregado',
+      text,
+      attachments: [...answer.attachments],
+      sentAt,
+    },
+  ]
+  request.timeline = [
+    {
+      at: sentAt,
+      title: `Atendimento finalizado · ${REQUEST_OUTCOME_LABELS[answer.outcome]}`,
+      detail:
+        'Resposta enviada ao titular e notificação disparada. Pesquisa de satisfação liberada.',
       author,
       highlight: true,
     },
