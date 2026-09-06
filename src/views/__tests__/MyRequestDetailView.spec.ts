@@ -7,7 +7,10 @@ import { DEMO_REQUESTS } from "@/features/requests/data/requests";
 
 vi.mock("@/features/auth/services/fakeNetwork", () => ({ delay: () => Promise.resolve() }));
 
-const route = { params: { id: "" } };
+const route: { params: { id: string }; query: Record<string, string> } = {
+  params: { id: "" },
+  query: {},
+};
 vi.mock("vue-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue-router")>()),
   useRoute: () => route,
@@ -17,8 +20,9 @@ vi.mock("vue-router", async (importOriginal) => ({
 const TITULAR = "titular@exemplo.com.br";
 const byProtocol = (protocol: string) => DEMO_REQUESTS.find((item) => item.protocol === protocol)!;
 
-async function render(protocol: string) {
+async function render(protocol: string, query: Record<string, string> = {}) {
   route.params.id = byProtocol(protocol).id;
+  route.query = query;
   const wrapper = mount(MyRequestDetailView, {
     attachTo: document.body,
     global: { stubs: { RouterLink: RouterLinkStub } },
@@ -89,5 +93,34 @@ describe("MyRequestDetailView", () => {
     expect(wrapper.text()).toContain("Requisição cancelada");
     expect(wrapper.text()).toContain("Cancelada");
     expect(wrapper.text()).not.toContain("Cancelar requisição");
+  });
+
+  // Antes do teste que responde: o armazenamento em memória é o mesmo no arquivo.
+  it("abre o formulário direto quando chega pelo link da pesquisa", async () => {
+    const wrapper = await render("2026-000392", { pesquisa: "1" });
+
+    expect(wrapper.text()).toContain("Sua avaliação do atendimento");
+  });
+
+  it("convida para a pesquisa na requisição concluída e registra a avaliação", async () => {
+    const wrapper = await render("2026-000392");
+
+    expect(wrapper.text()).toContain("Como foi o atendimento desta requisição?");
+    await wrapper.findAll("button").find((b) => b.text() === "Avaliar atendimento")!.trigger("click");
+
+    await wrapper.find('input[value="5"]').setValue();
+    await wrapper.find("form").trigger("submit");
+    await flushPromises();
+
+    expect(wrapper.text()).toContain("Avaliação registrada. Agradecemos a resposta.");
+    expect(wrapper.text()).toContain("Respondida");
+    expect(wrapper.text()).not.toContain("Avaliar atendimento");
+  });
+
+  it("explica que a pesquisa ainda não abriu numa requisição em andamento", async () => {
+    const wrapper = await render("2026-000444", { pesquisa: "1" });
+
+    expect(wrapper.text()).toContain("A pesquisa abre quando a requisição for finalizada");
+    expect(wrapper.find('input[type="radio"]').exists()).toBe(false);
   });
 });

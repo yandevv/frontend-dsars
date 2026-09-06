@@ -131,12 +131,21 @@ export interface DataRequest {
   messages: readonly RequestMessage[]
   answer?: RequestAnswer
   /**
-   * Nota de 1 a 5 da pesquisa de satisfação (RF011).
+   * A resposta à pesquisa de satisfação (RF011), quando houver.
    *
    * Fica aqui porque é consequência do atendimento, mas o relatório gerencial
-   * a lê sem o resto: lá ela entra sem vínculo com protocolo ou titular.
+   * lê só a nota, sem protocolo nem titular — e nenhuma tela do encarregado a
+   * mostra ligada à requisição.
    */
-  satisfactionRating?: number
+  survey?: SurveyAnswer
+}
+
+/** A avaliação do titular: uma por requisição, sem edição depois do envio. */
+export interface SurveyAnswer {
+  /** De 1 (muito insatisfatório) a 5 (muito satisfatório). */
+  rating: number
+  comment?: string
+  answeredAt: string
 }
 
 /** O que o formulário do titular envia para abrir uma requisição (RF004). */

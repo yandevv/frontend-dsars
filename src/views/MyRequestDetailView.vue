@@ -12,6 +12,11 @@ import RequestSentAnswer from "@/features/requests/components/RequestSentAnswer.
 import RequestStatusChip from "@/features/requests/components/RequestStatusChip.vue";
 import RequestSubjectRequest from "@/features/requests/components/RequestSubjectRequest.vue";
 import RequestTimeline from "@/features/requests/components/RequestTimeline.vue";
+import SurveyForm from "@/features/survey/components/SurveyForm.vue";
+import SurveyInvite from "@/features/survey/components/SurveyInvite.vue";
+import SurveyRecord from "@/features/survey/components/SurveyRecord.vue";
+import SurveyStatusCard from "@/features/survey/components/SurveyStatusCard.vue";
+import { submitSurvey, surveyAvailable } from "@/features/survey/services/surveyService";
 import { REQUEST_OUTCOME_LABELS, isOpen } from "@/features/requests/constants/requestStatus";
 import { cancelRequests, fetchRequest } from "@/features/requests/services/requestService";
 import { downloadText } from "@/shared/utils/download";
@@ -76,10 +81,38 @@ const when = computed(() => {
   return `Registrada em ${formatDate(current.registeredAt)}`;
 });
 
+// ── Pesquisa de satisfação ───────────────────────────────────────────────────
+/**
+ * Em que ponto a pesquisa está nesta visita. O convite aparece na primeira
+ * vez; "Agora não" o recolhe, mas a pesquisa continua aberta.
+ */
+const surveyPhase = ref<"convite" | "formulario" | "dispensada">("convite");
+const surveySending = ref(false);
+
+const surveyOpen = computed(
+  () => !!request.value && surveyAvailable(request.value) && !request.value.survey,
+);
+
+/** Chegou pelo link da notificação ou do e-mail, que já pede o formulário. */
+const askedForSurvey = computed(() => route.query.pesquisa === "1");
+
+async function sendSurvey(answer: { rating: number; comment: string }) {
+  const current = request.value;
+  if (!current || surveySending.value) return;
+
+  surveySending.value = true;
+  try {
+    request.value = { ...(await submitSurvey(current.id, answer)) };
+  } finally {
+    surveySending.value = false;
+  }
+}
+
 async function load(id: string) {
   loading.value = true;
   missing.value = false;
   notice.value = null;
+  surveyPhase.value = askedForSurvey.value ? "formulario" : "convite";
 
   try {
     const found = await fetchRequest(id);
@@ -223,8 +256,43 @@ function downloadAnswer() {
           </button>
         </div>
 
+        <SurveyInvite
+          v-if="surveyOpen && surveyPhase === 'convite'"
+          @start="surveyPhase = 'formulario'"
+          @dismiss="surveyPhase = 'dispensada'"
+        />
+
+        <!-- Link antigo para a pesquisa de uma requisição que ainda não a tem. -->
+        <section
+          v-if="askedForSurvey && !surveyAvailable(request)"
+          class="flex flex-col gap-2.5 border-l-[3px] border-ink-muted bg-field-disabled px-[18px] py-[18px]"
+        >
+          <h2 class="font-serif text-[22px] font-semibold leading-tight text-ink">
+            {{
+              request.status === "cancelada"
+                ? "Requisições canceladas não têm pesquisa"
+                : "A pesquisa abre quando a requisição for finalizada"
+            }}
+          </h2>
+          <p class="max-w-[72ch] text-[15px] leading-relaxed text-ink-body">
+            {{
+              request.status === "cancelada"
+                ? "Como o pedido foi cancelado antes da resposta, não há atendimento para avaliar."
+                : "Enquanto o pedido está em andamento não há convite nem pesquisa. Assim que a resposta chegar, ela fica disponível aqui."
+            }}
+          </p>
+        </section>
+
         <div class="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div class="flex flex-col gap-6">
+            <SurveyForm
+              v-if="surveyOpen && surveyPhase === 'formulario'"
+              :sending="surveySending"
+              @submit="sendSurvey"
+              @close="surveyPhase = 'dispensada'"
+            />
+            <SurveyRecord v-else-if="request.survey" :answer="request.survey" />
+
             <RequestSentAnswer v-if="request.answer" :answer="request.answer" audience="titular" />
 
             <RequestSubjectRequest :request="request" audience="titular" />
@@ -252,6 +320,13 @@ function downloadAnswer() {
 
           <div class="flex flex-col gap-[18px]">
             <RequestDeadlineCard :request="request" audience="titular" />
+
+            <SurveyStatusCard
+              v-if="surveyAvailable(request)"
+              :answer="request.survey"
+              :released-at="request.closedAt"
+              :dismissed="surveyPhase === 'dispensada'"
+            />
 
             <section class="flex flex-col gap-3 border border-line bg-surface px-5 py-[18px]">
               <h2

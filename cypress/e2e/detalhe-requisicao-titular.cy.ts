@@ -95,6 +95,42 @@ describe("Detalhe da requisição (titular)", () => {
     cy.contains("não recebe novas mensagens").should("be.visible");
   });
 
+  it("chega à pesquisa pela lista e registra a avaliação uma única vez", () => {
+    cy.visit("/requisicoes");
+    cy.contains("tbody tr", "2026-000392").contains("a", "Avaliar").click();
+
+    cy.location("search").should("eq", "?pesquisa=1");
+    cy.contains("Sua avaliação do atendimento").should("be.visible");
+    cy.contains("button", "Enviar avaliação").click();
+    cy.contains("Escolha uma nota para enviar a avaliação.").should("be.visible");
+
+    cy.contains("label", "Satisfatório").click();
+    cy.contains("Sua nota: 4 · satisfatório").should("be.visible");
+    cy.get("form textarea").first().type("Recebi o arquivo antes do prazo.");
+    cy.contains("button", "Enviar avaliação").click();
+
+    cy.contains("Avaliação registrada. Agradecemos a resposta.").should("be.visible");
+    cy.contains("Recebi o arquivo antes do prazo.").should("be.visible");
+    cy.contains("button", "Enviar avaliação").should("not.exist");
+    cy.contains("Pesquisa de satisfação respondida").should("be.visible");
+  });
+
+  it("convida na requisição concluída e deixa adiar", () => {
+    cy.visit(PORTABILIDADE);
+
+    cy.contains("Como foi o atendimento desta requisição?").should("be.visible");
+    cy.contains("button", "Agora não").click();
+    cy.contains("Como foi o atendimento desta requisição?").should("not.exist");
+    cy.contains("Aberta · não respondida").should("be.visible");
+  });
+
+  it("não oferece pesquisa numa requisição em andamento", () => {
+    cy.visit(`${ELIMINACAO}?pesquisa=1`);
+
+    cy.contains("A pesquisa abre quando a requisição for finalizada").should("be.visible");
+    cy.contains("Sua avaliação do atendimento").should("not.exist");
+  });
+
   it("trata a requisição de outra pessoa como inexistente", () => {
     cy.visit(DE_OUTRA_PESSOA);
 

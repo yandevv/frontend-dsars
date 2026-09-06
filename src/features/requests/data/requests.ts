@@ -412,7 +412,6 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
       sentAt: moment(-15, '17:26'),
       author: BEATRIZ,
     },
-    satisfactionRating: 4,
   },
   {
     protocol: '2026-000377',

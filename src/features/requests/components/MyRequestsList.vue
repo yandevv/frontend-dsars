@@ -95,6 +95,18 @@ function toggleAll() {
 function detailRoute(request: DataRequest) {
   return { name: "my-request-detail", params: { id: request.id } };
 }
+
+/**
+ * Concluída e ainda sem avaliação: a linha ganha o atalho para a pesquisa. Só
+ * nessas, para o convite não virar ruído em quem tem muitas requisições.
+ */
+function surveyPending(request: DataRequest): boolean {
+  return request.status === "concluida" && !request.survey;
+}
+
+function surveyRoute(request: DataRequest) {
+  return { ...detailRoute(request), query: { pesquisa: "1" } };
+}
 </script>
 
 <template>
@@ -168,7 +180,7 @@ function detailRoute(request: DataRequest) {
               {{ row.detail }}
             </p>
           </td>
-          <td class="w-[150px] pr-4">
+          <td class="w-[190px] pr-4">
             <div class="flex items-center justify-end gap-3.5">
               <button
                 v-if="row.open"
@@ -178,6 +190,13 @@ function detailRoute(request: DataRequest) {
               >
                 Cancelar<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
               </button>
+              <RouterLink
+                v-if="surveyPending(row.request)"
+                :to="surveyRoute(row.request)"
+                class="bg-brand px-3 py-1.5 text-sm font-semibold text-white no-underline hover:bg-brand-strong"
+              >
+                Avaliar<span class="sr-only"> o atendimento da requisição {{ row.request.protocol }}</span>
+              </RouterLink>
               <RouterLink
                 :to="detailRoute(row.request)"
                 class="text-[15px] font-medium text-brand no-underline hover:text-brand-strong"
@@ -251,6 +270,13 @@ function detailRoute(request: DataRequest) {
             >
               Cancelar<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
             </button>
+            <RouterLink
+              v-if="surveyPending(row.request)"
+              :to="surveyRoute(row.request)"
+              class="bg-brand px-3 py-1.5 text-sm font-semibold text-white"
+            >
+              Avaliar<span class="sr-only"> o atendimento da requisição {{ row.request.protocol }}</span>
+            </RouterLink>
             <RouterLink :to="detailRoute(row.request)" class="text-[15px] font-medium text-brand">
               Abrir<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
             </RouterLink>
