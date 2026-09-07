@@ -11,6 +11,7 @@ import { delay } from '@/features/auth/services/fakeNetwork'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { uuidv7 } from '@/shared/utils/uuid'
 import { canEditMessage } from '@/features/requests/utils/messages'
+import { TEAM_INBOX, notify, titularInbox } from '@/features/notifications/composables/useNotifications'
 import type {
   DataRequest,
   MessageActor,
@@ -71,6 +72,16 @@ function find(id: string): DataRequest {
   return request
 }
 
+/*
+ * Os avisos que o servidor enviaria a cada evento. O e-mail que os acompanha
+ * não sai daqui: só o protocolo iria nele, nunca o conteúdo do pedido.
+ */
+const forTitular = (request: DataRequest) => ({
+  name: 'my-request-detail',
+  params: { id: request.id },
+})
+const forTeam = (request: DataRequest) => ({ name: 'request-detail', params: { id: request.id } })
+
 /** Registra a requisição e devolve o comprovante que a tela exibe (RF004). */
 export async function createRequest(
   { rightNumeral, description, attachments }: NewRequest,
@@ -107,9 +118,19 @@ export async function createRequest(
     messages: [],
   })
 
+  const created = requests[0]!
+  notify(TEAM_INBOX, {
+    type: 'Nova requisição',
+    tone: 'neutro',
+    title: `${right?.requestLabel ?? 'Requisição'} registrada por ${subject.name}`,
+    detail: 'Entrou na fila ainda sem responsável designado.',
+    reference: `Protocolo ${protocol}`,
+    target: forTeam(created),
+  })
+
   return {
     protocol,
-    id: requests[0]!.id,
+    id: created.id,
     rightNumeral: right?.numeral ?? rightNumeral,
     registeredAt,
     dueAt,
@@ -211,7 +232,42 @@ export async function sendMessage(
       },
       ...request.timeline,
     ]
-  } else if (actor.role === 'titular' && request.status === 'aguardando-complemento') {
+  }
+
+  const answeringComplement =
+    actor.role === 'titular' && request.status === 'aguardando-complemento'
+
+  if (actor.role === 'encarregado') {
+    notify(titularInbox(request.subject.email), {
+      type: kind === 'complemento' ? 'Complemento solicitado' : 'Nova mensagem',
+      tone: 'pendencia',
+      title:
+        kind === 'complemento'
+          ? `Precisamos de uma informação para seguir com a ${request.protocol}`
+          : `A equipe escreveu na requisição ${request.protocol}`,
+      detail:
+        kind === 'complemento'
+          ? 'Responda pela própria requisição. O prazo legal continua correndo durante a espera.'
+          : 'Abra a requisição para ler a mensagem e responder.',
+      reference: `Protocolo ${request.protocol}`,
+      target: forTitular(request),
+    })
+  } else {
+    notify(TEAM_INBOX, {
+      type: answeringComplement ? 'Complemento recebido' : 'Nova mensagem',
+      tone: 'pendencia',
+      title: answeringComplement
+        ? `O titular da ${request.protocol} enviou o complemento pedido`
+        : `Nova mensagem do titular na ${request.protocol}`,
+      detail: answeringComplement
+        ? 'A requisição voltou para análise.'
+        : 'Abra a requisição para ler e responder pela conversa.',
+      reference: `Protocolo ${request.protocol}`,
+      target: forTeam(request),
+    })
+  }
+
+  if (answeringComplement) {
     request.status = 'em-analise'
     request.timeline = [
       {
@@ -364,6 +420,25 @@ export async function answerRequest(
     ...request.timeline,
   ]
 
+  const inbox = titularInbox(request.subject.email)
+  notify(inbox, {
+    type: 'Requisição concluída',
+    tone: 'neutro',
+    title: `A resposta à ${request.protocol} está disponível`,
+    detail: `Desfecho: ${REQUEST_OUTCOME_LABELS[answer.outcome].toLowerCase()}. A resposta e os anexos estão na própria requisição.`,
+    reference: `Protocolo ${request.protocol}`,
+    target: forTitular(request),
+  })
+  notify(inbox, {
+    type: 'Pesquisa de satisfação',
+    tone: 'neutro',
+    title: `Como foi o atendimento da ${request.protocol}?`,
+    detail:
+      'Uma pergunta de nota e um campo livre. As respostas entram no relatório sem identificar quem respondeu.',
+    reference: `Protocolo ${request.protocol}`,
+    target: { ...forTitular(request), query: { pesquisa: '1' } },
+  })
+
   return request
 }
 
@@ -440,6 +515,14 @@ export async function cancelRequests(ids: readonly string[], reason: string): Pr
       ...request.timeline,
     ]
     result.cancelled.push(request)
+    notify(TEAM_INBOX, {
+      type: 'Requisição cancelada',
+      tone: 'neutro',
+      title: `O titular cancelou o protocolo ${request.protocol}`,
+      detail: `Motivo informado: “${text}”. A requisição saiu da fila.`,
+      reference: `Protocolo ${request.protocol}`,
+      target: forTeam(request),
+    })
   }
 
   return result

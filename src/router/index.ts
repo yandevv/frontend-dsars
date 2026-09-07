@@ -114,11 +114,7 @@ const router = createRouter({
     {
       path: '/notificacoes',
       name: 'notifications',
-      component: underConstruction,
-      meta: {
-        title: 'Notificações',
-        description: 'A lista completa de avisos ainda não foi implementada.',
-      },
+      component: () => import('@/views/NotificationsView.vue'),
     },
     {
       path: '/configuracoes',

@@ -8,6 +8,7 @@ import NotificationsPanel from '@/shared/layout/NotificationsPanel.vue'
 import { endSession } from '@/features/auth/composables/useSession'
 import { useNotifications } from '@/features/notifications/composables/useNotifications'
 import type { Account } from '@/features/auth/types/auth'
+import type { AppNotification } from '@/features/notifications/types/notification'
 import type { AppArea } from '@/shared/layout/types'
 import type { Tenant } from '@/features/tenant/types/tenant'
 
@@ -31,7 +32,19 @@ const header = useTemplateRef<HTMLElement>('header')
 const route = useRoute()
 const router = useRouter()
 
-const { notifications, unreadCount, markAllAsRead } = useNotifications(account.role)
+const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(account)
+
+/**
+ * Acionar um aviso marca como lido e leva ao recurso. Se o recurso não existe
+ * mais, a página de notificações abre com a explicação no lugar do link morto.
+ */
+async function openNotification(notification: AppNotification) {
+  markAsRead(notification.id)
+  open.value = 'none'
+  await router.push(
+    notification.target ?? { name: 'notifications', query: { aviso: notification.id } },
+  )
+}
 
 function toggle(panel: Exclude<OpenPanel, 'none'>) {
   open.value = open.value === panel ? 'none' : panel
@@ -192,7 +205,9 @@ const panelPosition = 'absolute right-0 top-[calc(100%+12px)] z-30'
     >
       <NotificationsPanel
         :notifications="notifications"
+        :unread-count="unreadCount"
         @mark-all-read="markAllAsRead"
+        @open="openNotification"
       />
     </div>
 

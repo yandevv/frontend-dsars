@@ -51,3 +51,28 @@ export function daysUntil(iso: string, from: Date = new Date()): number {
     (startOfDay(new Date(iso)).getTime() - startOfDay(from).getTime()) / DAY_MS,
   )
 }
+
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString(LOCALE, { hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * O momento em linguagem corrente, como a lista de avisos o escreve:
+ * "Hoje, 07:00", "Ontem, 18:40" ou "02/09/2026, 11:20".
+ */
+export function relativeMoment(iso: string, now: Date = new Date()): string {
+  const date = new Date(iso)
+  const days = daysUntil(iso, now)
+  if (days === 0) return `Hoje, ${formatTime(date)}`
+  if (days === -1) return `Ontem, ${formatTime(date)}`
+  return formatDateTime(iso)
+}
+
+/** O rótulo do grupo em que o aviso cai: "Hoje", "Ontem" ou o mês, "Setembro de 2026". */
+export function momentGroup(iso: string, now: Date = new Date()): string {
+  const days = daysUntil(iso, now)
+  if (days === 0) return 'Hoje'
+  if (days === -1) return 'Ontem'
+  const label = new Date(iso).toLocaleDateString(LOCALE, { month: 'long', year: 'numeric' })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}

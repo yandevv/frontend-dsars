@@ -41,6 +41,15 @@ export function useSession(role: AccountRole): { account: ComputedRef<Account> }
   return { account }
 }
 
+/**
+ * O perfil de quem está na tela, para as páginas comuns aos dois lados —
+ * notificações, configurações, ajuda. Sem ninguém autenticado, vale o titular:
+ * é o perfil de quem chega ao portal pela porta pública.
+ */
+export function currentRole(): AccountRole {
+  return signedIn.value?.role ?? 'titular'
+}
+
 /** Chamada pelo formulário de acesso quando a autenticação dá certo. */
 export function startSession(account: Account): void {
   signedIn.value = account

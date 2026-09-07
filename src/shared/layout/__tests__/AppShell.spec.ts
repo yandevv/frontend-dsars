@@ -4,6 +4,7 @@ import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
 import AppShell from '../AppShell.vue'
 import { APP_AREAS } from '../areas'
+import { resetNotifications } from '@/features/notifications/composables/useNotifications'
 
 /**
  * A moldura depende de rotas nomeadas de verdade: o cabeçalho monta os links a
@@ -30,6 +31,8 @@ function buildRouter(): Router {
 let router: Router
 
 beforeEach(async () => {
+  // As caixas de aviso vivem no módulo: cada teste começa da demonstração.
+  resetNotifications()
   router = buildRouter()
   await router.push('/request-queue')
   await router.isReady()
@@ -60,12 +63,12 @@ describe('AppShell', () => {
     const wrapper = render('encarregado')
     const bell = wrapper.get('button[aria-expanded]')
 
-    expect(bell.text()).toContain('2')
+    expect(bell.text()).toContain('3')
 
     await bell.trigger('click')
     await wrapper.get('button[class*="underline"]').trigger('click')
 
-    expect(wrapper.get('button[aria-expanded]').text()).not.toContain('2')
+    expect(wrapper.get('button[aria-expanded]').text()).not.toContain('3')
   })
 
   it('abre um painel por vez: a conta fecha os avisos', async () => {
