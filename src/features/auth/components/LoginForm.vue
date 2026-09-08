@@ -16,7 +16,7 @@ import {
   SESSION_PERSISTENT_DAYS,
   attemptsInWords,
 } from '@/features/auth/constants/loginPolicy'
-import { resendConfirmation } from '@/features/auth/services/accountService'
+import { resendConfirmation } from '@/features/auth/services/emailConfirmationService'
 import { SignInError, signIn } from '@/features/auth/services/sessionService'
 import type { Account, AccountRole } from '@/features/auth/types/auth'
 

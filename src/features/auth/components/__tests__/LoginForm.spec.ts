@@ -7,7 +7,9 @@ import { LOGIN_MAX_ATTEMPTS } from '@/features/auth/constants/loginPolicy'
 import type { Account, Credentials } from '@/features/auth/types/auth'
 
 const signIn = vi.hoisted(() => vi.fn<(credentials: Credentials) => Promise<Account>>())
-const resendConfirmation = vi.hoisted(() => vi.fn<(email: string) => Promise<void>>())
+const resendConfirmation = vi.hoisted(() =>
+  vi.fn<(email: string) => Promise<{ sentAt: string }>>(),
+)
 
 vi.mock('@/features/auth/services/sessionService', async (importOriginal) => ({
   // `SignInError` real: o componente decide o que mostrar com `instanceof`.
@@ -15,8 +17,8 @@ vi.mock('@/features/auth/services/sessionService', async (importOriginal) => ({
   signIn,
 }))
 
-vi.mock('@/features/auth/services/accountService', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/features/auth/services/accountService')>()),
+vi.mock('@/features/auth/services/emailConfirmationService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth/services/emailConfirmationService')>()),
   resendConfirmation,
 }))
 
@@ -112,7 +114,7 @@ describe('LoginForm', () => {
 
   it('reenvia o link de confirmação a partir do aviso do RN005', async () => {
     signIn.mockRejectedValue(new SignInError('email-nao-confirmado'))
-    resendConfirmation.mockResolvedValue(undefined)
+    resendConfirmation.mockResolvedValue({ sentAt: new Date().toISOString() })
     const wrapper = render()
     await fill(wrapper, 'pendente@exemplo.com.br')
     await submit(wrapper)

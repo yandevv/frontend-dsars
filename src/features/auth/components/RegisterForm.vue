@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, useTemplateRef } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
@@ -8,11 +8,7 @@ import BaseCheckbox from '@/shared/ui/BaseCheckbox.vue'
 import BaseField from '@/shared/ui/BaseField.vue'
 import PasswordStrengthMeter from '@/features/auth/components/PasswordStrengthMeter.vue'
 import { usePasswordPolicy } from '@/features/auth/composables/usePasswordPolicy'
-import {
-  AccountError,
-  createAccount,
-  resendConfirmation,
-} from '@/features/auth/services/accountService'
+import { AccountError, createAccount } from '@/features/auth/services/accountService'
 
 /**
  * Cadastro do titular (RF002, RN002 a RN005).
@@ -31,14 +27,13 @@ const form = reactive({
   acceptedTerms: false,
 })
 
-/** `created` troca o formulário pela confirmação do RN005. */
-const status = ref<'idle' | 'sending' | 'created'>('idle')
+const router = useRouter()
+
+const status = ref<'idle' | 'sending'>('idle')
 /** Só depois da primeira tentativa os campos passam a mostrar erro. */
 const attempted = ref(false)
 const takenEmail = ref('')
 const unexpectedFailure = ref(false)
-const createdEmail = ref('')
-const resendStatus = ref<'idle' | 'sending' | 'sent'>('idle')
 
 const summary = useTemplateRef<HTMLElement>('summary')
 
@@ -119,8 +114,12 @@ async function submit() {
       email: form.email,
       password: form.password,
     })
-    createdEmail.value = account.email
-    status.value = 'created'
+    // A conta nasce pendente: a tela de confirmação diz para onde o link foi e
+    // cuida do reenvio, com o intervalo mínimo à vista.
+    await router.push({
+      name: 'email-confirmation',
+      query: { origem: 'cadastro', email: account.email },
+    })
   } catch (error) {
     status.value = 'idle'
     if (error instanceof AccountError && error.reason === 'email-em-uso') {
@@ -130,64 +129,10 @@ async function submit() {
     }
   }
 }
-
-async function resend() {
-  if (resendStatus.value === 'sending') return
-
-  resendStatus.value = 'sending'
-  try {
-    await resendConfirmation(createdEmail.value)
-    resendStatus.value = 'sent'
-  } catch {
-    resendStatus.value = 'idle'
-  }
-}
 </script>
 
 <template>
-  <!-- RN005: conta criada, à espera da confirmação do e-mail. -->
-  <div
-    v-if="status === 'created'"
-    class="flex flex-col gap-[18px]"
-  >
-    <BaseAlert
-      variant="success"
-      size="md"
-      title="Conta criada. Falta confirmar o e-mail."
-    >
-      <p>Enviamos um link de confirmação para:</p>
-      <p class="text-[17px] font-semibold break-all text-brand">
-        {{ createdEmail }}
-      </p>
-      <p>
-        Abra esse link para ativar a conta. Até lá você pode entrar, mas ainda não
-        registrar pedidos.
-      </p>
-    </BaseAlert>
-
-    <div class="flex flex-col gap-2.5">
-      <BaseButton
-        block
-        :busy="resendStatus === 'sending'"
-        @click="resend"
-      >
-        {{ resendStatus === 'sending' ? 'Reenviando…' : 'Reenviar o link' }}
-      </BaseButton>
-      <p
-        v-if="resendStatus === 'sent'"
-        role="status"
-        class="text-[13px] leading-normal text-brand"
-      >
-        Enviamos outro link para {{ createdEmail }}.
-      </p>
-      <p class="text-[13px] leading-normal text-ink-muted">
-        O link vale por 24 horas. Se não chegar, confira a caixa de spam antes de pedir outro.
-      </p>
-    </div>
-  </div>
-
   <form
-    v-else
     class="flex flex-col gap-[26px]"
     novalidate
     @submit.prevent="submit"

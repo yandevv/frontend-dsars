@@ -82,10 +82,11 @@ describe('Registro de conta', () => {
     fillForm(email)
     cy.get('button[type="submit"]').click()
 
-    cy.contains('Conta criada. Falta confirmar o e-mail.').should('be.visible')
+    cy.location('pathname').should('eq', '/confirmar-email')
+    cy.get('h1').should('contain.text', 'Confirme seu e-mail para ativar a conta')
     cy.contains(email).should('be.visible')
-    cy.contains('O link vale por 24 horas.').should('be.visible')
-    cy.get('form').should('not.exist')
+    cy.contains('Válido por 24 horas.').should('be.visible')
+    cy.contains('button', 'Novo envio em').should('be.disabled')
   })
 
   it('leva aos documentos legais citados no aceite', () => {

@@ -1,5 +1,6 @@
 import { findDemoAccount, normalizeEmail } from '@/features/auth/data/accounts'
 import { delay } from '@/features/auth/services/fakeNetwork'
+import { recordConfirmationSent } from '@/features/auth/services/emailConfirmationService'
 import type { Account, NewAccount } from '@/features/auth/types/auth'
 
 /**
@@ -45,6 +46,7 @@ export async function createAccount(input: NewAccount): Promise<Account> {
   // O backend persistirá a conta; aqui basta lembrar do endereço para que um
   // segundo cadastro igual seja recusado enquanto a aba estiver aberta.
   createdEmails.add(email)
+  recordConfirmationSent(email)
 
   return {
     name: input.name.trim(),
@@ -52,10 +54,4 @@ export async function createAccount(input: NewAccount): Promise<Account> {
     role: 'titular',
     emailConfirmed: false,
   }
-}
-
-/** Reenvia o link de confirmação do RN005. */
-export async function resendConfirmation(email: string): Promise<void> {
-  await delay()
-  void email
 }

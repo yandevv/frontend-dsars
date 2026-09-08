@@ -6,13 +6,17 @@ import { AccountError } from '@/features/auth/services/accountService'
 import type { Account, NewAccount } from '@/features/auth/types/auth'
 
 const createAccount = vi.hoisted(() => vi.fn<(input: NewAccount) => Promise<Account>>())
-const resendConfirmation = vi.hoisted(() => vi.fn<(email: string) => Promise<void>>())
+const push = vi.hoisted(() => vi.fn<(to: unknown) => Promise<void>>())
+
+vi.mock('vue-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-router')>()),
+  useRouter: () => ({ push }),
+}))
 
 vi.mock('@/features/auth/services/accountService', async (importOriginal) => ({
   // `AccountError` real: o componente decide o que mostrar com `instanceof`.
   ...(await importOriginal<typeof import('@/features/auth/services/accountService')>()),
   createAccount,
-  resendConfirmation,
 }))
 
 const VALID_PASSWORD = 'SenhaSegura!123'
@@ -58,7 +62,7 @@ async function submit(wrapper: VueWrapper) {
 describe('RegisterForm', () => {
   beforeEach(() => {
     createAccount.mockReset()
-    resendConfirmation.mockReset()
+    push.mockReset()
     createAccount.mockResolvedValue({
       name: 'Marina Torres de Almeida',
       email: 'marina@exemplo.com.br',
@@ -109,7 +113,7 @@ describe('RegisterForm', () => {
     expect(wrapper.text()).toContain('As senhas coincidem.')
   })
 
-  it('cria a conta e mostra a pendência de confirmação do RN005', async () => {
+  it('cria a conta e leva à tela de confirmação do e-mail (RN005)', async () => {
     const wrapper = render()
     await fill(wrapper)
 
@@ -120,9 +124,10 @@ describe('RegisterForm', () => {
       email: 'marina@exemplo.com.br',
       password: VALID_PASSWORD,
     })
-    expect(wrapper.text()).toContain('Conta criada. Falta confirmar o e-mail.')
-    expect(wrapper.text()).toContain('marina@exemplo.com.br')
-    expect(wrapper.find('form').exists()).toBe(false)
+    expect(push).toHaveBeenCalledWith({
+      name: 'email-confirmation',
+      query: { origem: 'cadastro', email: 'marina@exemplo.com.br' },
+    })
   })
 
   it('oferece as duas saídas quando o e-mail já tem conta (RN004)', async () => {
@@ -158,18 +163,5 @@ describe('RegisterForm', () => {
       'value',
       'marina@exemplo.com.br',
     )
-  })
-
-  it('reenvia o link de confirmação a partir da tela de sucesso', async () => {
-    resendConfirmation.mockResolvedValue(undefined)
-    const wrapper = render()
-    await fill(wrapper)
-    await submit(wrapper)
-
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-
-    expect(resendConfirmation).toHaveBeenCalledWith('marina@exemplo.com.br')
-    expect(wrapper.text()).toContain('Enviamos outro link para marina@exemplo.com.br.')
   })
 })

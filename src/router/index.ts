@@ -36,6 +36,19 @@ const router = createRouter({
       component: () => import('@/views/RegisterView.vue'),
     },
     {
+      // Espera pela confirmação: a origem e o endereço vêm na query, para que a
+      // mesma tela sirva ao cadastro e à troca de e-mail.
+      path: '/confirmar-email',
+      name: 'email-confirmation',
+      component: () => import('@/views/EmailConfirmationView.vue'),
+    },
+    {
+      // O link aberto pela pessoa: a ficha na URL é o que o servidor valida.
+      path: '/confirmar-email/:token',
+      name: 'email-confirmation-link',
+      component: () => import('@/views/EmailConfirmationView.vue'),
+    },
+    {
       // O token vem na URL porque o convite é um link nominal enviado por e-mail.
       path: '/convite/:token',
       name: 'invite',

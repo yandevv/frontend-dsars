@@ -9,7 +9,6 @@ import CancelRequestsDialog from "@/features/requests/components/CancelRequestsD
 import MyRequestsList from "@/features/requests/components/MyRequestsList.vue";
 import QueueSkeleton from "@/features/requests/components/QueueSkeleton.vue";
 import { LEGAL_DEADLINE_DAYS } from "@/features/requests/constants/requestPolicy";
-import { resendConfirmation } from "@/features/auth/services/accountService";
 import { cancelRequests } from "@/features/requests/services/requestService";
 import { useMyRequests } from "@/features/requests/composables/useMyRequests";
 import { useSession } from "@/features/auth/composables/useSession";
@@ -30,7 +29,6 @@ const list = useMyRequests(() => account.value.email);
 const confirmed = computed(() => account.value.emailConfirmed);
 /** Aviso sobre a lista: o que acabou de acontecer, com título quando pesa. */
 const notice = ref<{ title?: string; text: string } | null>(null);
-const resend = ref<"idle" | "sending" | "sent">("idle");
 
 const empty = computed(() => !list.loading.value && list.requests.value.length === 0);
 
@@ -103,17 +101,6 @@ async function confirmCancel(reason: string) {
     cancelling.value = false;
   }
 }
-
-async function resendLink() {
-  if (resend.value === "sending") return;
-  resend.value = "sending";
-  try {
-    await resendConfirmation(account.value.email);
-    resend.value = "sent";
-  } catch {
-    resend.value = "idle";
-  }
-}
 </script>
 
 <template>
@@ -136,21 +123,17 @@ async function resendLink() {
             Registrar uma requisição exige o endereço confirmado. Enviamos o link para
             <strong class="font-semibold">{{ account.email }}</strong> — ele vale 24 horas.
           </p>
-          <p
-            v-if="resend === 'sent'"
-            role="status"
-            class="text-sm text-brand"
-          >
-            Enviamos um novo link. Confira também a caixa de spam.
-          </p>
         </div>
         <div class="flex flex-wrap gap-2.5">
+          <!-- O reenvio mora na tela de confirmação, com o intervalo mínimo à vista. -->
           <BaseButton
             size="sm"
-            :busy="resend === 'sending'"
-            @click="resendLink"
+            :to="{
+              name: 'email-confirmation',
+              query: { origem: 'cadastro', email: account.email },
+            }"
           >
-            {{ resend === "sending" ? "Reenviando…" : "Reenviar link" }}
+            Reenviar link
           </BaseButton>
           <BaseButton
             size="sm"

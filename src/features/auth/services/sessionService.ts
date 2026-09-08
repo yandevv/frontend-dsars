@@ -1,6 +1,7 @@
 import { findDemoAccount } from '@/features/auth/data/accounts'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import type { Account, Credentials } from '@/features/auth/types/auth'
+import { isConfirmedInSession } from '@/features/auth/services/emailConfirmationService'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +45,8 @@ export async function signIn({ email, password }: Credentials): Promise<Account>
 
   // Senha correta, mas o link do RN005 nunca foi aberto: não é uma tentativa
   // frustrada de acesso, e por isso não conta para o bloqueio.
-  if (!account.emailConfirmed) {
+  const emailConfirmed = account.emailConfirmed || isConfirmedInSession(account.email)
+  if (!emailConfirmed) {
     throw new SignInError('email-nao-confirmado')
   }
 
@@ -52,6 +54,6 @@ export async function signIn({ email, password }: Credentials): Promise<Account>
     name: account.name,
     email: account.email,
     role: account.role,
-    emailConfirmed: account.emailConfirmed,
+    emailConfirmed,
   }
 }
