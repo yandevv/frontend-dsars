@@ -327,7 +327,7 @@ async function renew(address: string) {
               Registrar uma requisição
             </BaseButton>
           </div>
-          <BaseButton v-else :to="{ name: 'settings' }" block>Voltar aos dados pessoais</BaseButton>
+          <BaseButton v-else :to="{ name: 'personal-data' }" block>Voltar aos dados pessoais</BaseButton>
         </template>
 
         <!-- ── Vencido ─────────────────────────────────────────────────── -->

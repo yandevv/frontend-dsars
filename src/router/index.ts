@@ -75,12 +75,8 @@ const router = createRouter({
     {
       path: '/meus-dados',
       name: 'my-data',
-      component: underConstruction,
-      meta: {
-        title: 'Meus dados',
-        description:
-          'A página com os dados cadastrais da sua conta ainda não foi implementada.',
-      },
+      // "Meus dados" do portal do titular é a seção de dados pessoais das configurações.
+      redirect: { name: 'personal-data' },
     },
 
     // ── Área do encarregado ──────────────────────────────────────────────────
@@ -132,10 +128,21 @@ const router = createRouter({
     {
       path: '/configuracoes',
       name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
+    },
+    {
+      path: '/configuracoes/dados-pessoais',
+      name: 'personal-data',
+      component: () => import('@/views/PersonalDataView.vue'),
+    },
+    {
+      path: '/configuracoes/seguranca',
+      name: 'security-settings',
       component: underConstruction,
       meta: {
-        title: 'Configurações da conta',
-        description: 'As configurações da conta ainda não foram implementadas.',
+        title: 'Segurança',
+        description:
+          'A troca de senha e a lista de sessões ativas da conta ainda não foram implementadas.',
       },
     },
     {

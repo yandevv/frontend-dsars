@@ -14,11 +14,11 @@ export const APP_AREAS: Record<AccountRole, AppArea> = {
     roleLabel: 'Titular de dados',
     nav: [
       { label: 'Minhas requisições', to: { name: 'my-requests' } },
-      { label: 'Meus dados', to: { name: 'my-data' } },
+      { label: 'Meus dados', to: { name: 'personal-data' } },
       { label: 'Ajuda', to: { name: 'help' } },
     ],
     accountLinks: [
-      { label: 'Dados pessoais', to: { name: 'my-data' } },
+      { label: 'Dados pessoais', to: { name: 'personal-data' } },
       { label: 'Configurações da conta', to: { name: 'settings' } },
       { label: 'Preferências de notificação', to: { name: 'notification-settings' } },
     ],

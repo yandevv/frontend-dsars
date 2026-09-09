@@ -16,12 +16,18 @@ import type { AppNotification } from '@/features/notifications/types/notificatio
  * serviço falso.
  */
 
-/** Momento a `days` dias de hoje, no horário informado. */
+/**
+ * Momento a `days` dias de hoje, no horário informado.
+ *
+ * Um aviso "de hoje, 08:14" aberto às seis da manhã estaria no futuro; nesse
+ * caso ele recua para um minuto antes de agora, e continua sendo de hoje.
+ */
 function moment(days: number, time: string): string {
   const date = new Date(daysFromNow(days))
   const [hours = '9', minutes = '0'] = time.split(':')
   date.setHours(Number(hours), Number(minutes), 0, 0)
-  return date.toISOString()
+  const latest = Date.now() - 60_000
+  return new Date(Math.min(date.getTime(), latest)).toISOString()
 }
 
 function idOf(protocol: string): string {

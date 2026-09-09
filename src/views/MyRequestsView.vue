@@ -138,7 +138,7 @@ async function confirmCancel(reason: string) {
           <BaseButton
             size="sm"
             variant="secondary"
-            :to="{ name: 'settings' }"
+            :to="{ name: 'personal-data' }"
           >
             Corrigir e-mail
           </BaseButton>
