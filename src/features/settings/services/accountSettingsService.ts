@@ -1,4 +1,5 @@
-import { DEMO_PASSWORD, findDemoAccount, normalizeEmail } from '@/features/auth/data/accounts'
+import { normalizeEmail } from '@/features/auth/data/accounts'
+import { currentPasswordOf } from '@/features/settings/services/securityService'
 import { DEMO_PROFILES } from '@/features/settings/data/profiles'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { formatPhone, isValidPhone } from '@/features/settings/utils/mask'
@@ -87,9 +88,7 @@ export async function requestEmailChange(
   if (!/.+@.+\..+/.test(next)) throw new ProfileError('email-invalido')
   if (next === normalizeEmail(profile.email)) throw new ProfileError('email-igual')
 
-  const account = findDemoAccount(email)
-  const expected = account?.password ?? DEMO_PASSWORD
-  if (password !== expected) throw new ProfileError('senha-incorreta')
+  if (password !== currentPasswordOf(email)) throw new ProfileError('senha-incorreta')
 
   profile.pendingEmail = next
   recordConfirmationSent(next)

@@ -138,12 +138,7 @@ const router = createRouter({
     {
       path: '/configuracoes/seguranca',
       name: 'security-settings',
-      component: underConstruction,
-      meta: {
-        title: 'Segurança',
-        description:
-          'A troca de senha e a lista de sessões ativas da conta ainda não foram implementadas.',
-      },
+      component: () => import('@/views/SecuritySettingsView.vue'),
     },
     {
       path: '/configuracoes/notificacoes',

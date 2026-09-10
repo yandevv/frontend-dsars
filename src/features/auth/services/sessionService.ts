@@ -2,6 +2,7 @@ import { findDemoAccount } from '@/features/auth/data/accounts'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import type { Account, Credentials } from '@/features/auth/types/auth'
 import { isConfirmedInSession } from '@/features/auth/services/emailConfirmationService'
+import { currentPasswordOf } from '@/features/settings/services/securityService'
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
@@ -39,7 +40,8 @@ export async function signIn({ email, password }: Credentials): Promise<Account>
   await delay()
 
   const account = findDemoAccount(email)
-  if (!account || account.password !== password) {
+  // A senha vigente pode ter sido trocada nas configurações desta sessão.
+  if (!account || currentPasswordOf(account.email) !== password) {
     throw new SignInError('credenciais-invalidas')
   }
 

@@ -5,7 +5,10 @@ import BaseButton from "@/shared/ui/BaseButton.vue";
 import SettingsLayout from "@/features/settings/components/SettingsLayout.vue";
 import { currentRole, useSession } from "@/features/auth/composables/useSession";
 import { fetchProfile } from "@/features/settings/services/accountSettingsService";
+import { fetchSecurity } from "@/features/settings/services/securityService";
+import { formatDate } from "@/shared/utils/date";
 import type { AccountProfile } from "@/features/settings/types/profile";
+import type { SecurityOverview } from "@/features/settings/types/security";
 
 /**
  * Turno 1 · Tela 16 — Configurações da conta (RF015).
@@ -17,9 +20,13 @@ const role = currentRole();
 const { account } = useSession(role);
 
 const profile = ref<AccountProfile | null>(null);
+const security = ref<SecurityOverview | null>(null);
 
 onMounted(async () => {
-  profile.value = await fetchProfile(account.value.email);
+  [profile.value, security.value] = await Promise.all([
+    fetchProfile(account.value.email),
+    fetchSecurity(account.value.email),
+  ]);
 });
 </script>
 
@@ -70,6 +77,27 @@ onMounted(async () => {
           <p class="text-[15px] leading-relaxed text-ink-soft">
             Data da última troca de senha e todos os dispositivos conectados a esta conta.
           </p>
+          <dl class="mt-1 flex flex-col gap-1.5">
+            <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
+              <dt class="text-sm text-ink-muted">Senha alterada</dt>
+              <dd class="text-sm font-medium text-ink">
+                {{ security ? formatDate(security.passwordChangedAt) : "…" }}
+              </dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
+              <dt class="text-sm text-ink-muted">Sessões ativas</dt>
+              <dd
+                class="text-sm font-medium"
+                :class="security && security.sessions.length > 3 ? 'text-due-soon-ink' : 'text-ink'"
+              >
+                {{
+                  !security
+                    ? "…"
+                    : `${security.sessions.length} ${security.sessions.length === 1 ? "dispositivo" : "dispositivos"}`
+                }}
+              </dd>
+            </div>
+          </dl>
         </div>
         <BaseButton
           variant="secondary"
