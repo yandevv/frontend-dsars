@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 
 import BaseButton from "@/shared/ui/BaseButton.vue";
 import SettingsLayout from "@/features/settings/components/SettingsLayout.vue";
 import { currentRole, useSession } from "@/features/auth/composables/useSession";
 import { fetchProfile } from "@/features/settings/services/accountSettingsService";
 import { fetchSecurity } from "@/features/settings/services/securityService";
+import { fetchPreferences } from "@/features/settings/services/notificationPreferencesService";
+import { NOTIFICATION_CHANNELS, eventsFor } from "@/features/settings/constants/notificationEvents";
 import { formatDate } from "@/shared/utils/date";
 import type { AccountProfile } from "@/features/settings/types/profile";
 import type { SecurityOverview } from "@/features/settings/types/security";
+import type { NotificationPreferences } from "@/features/settings/types/preferences";
 
 /**
  * Turno 1 · Tela 16 — Configurações da conta (RF015).
@@ -21,12 +24,33 @@ const { account } = useSession(role);
 
 const profile = ref<AccountProfile | null>(null);
 const security = ref<SecurityOverview | null>(null);
+const preferences = ref<NotificationPreferences | null>(null);
 
 onMounted(async () => {
-  [profile.value, security.value] = await Promise.all([
+  [profile.value, security.value, preferences.value] = await Promise.all([
     fetchProfile(account.value.email),
     fetchSecurity(account.value.email),
+    fetchPreferences(account.value.email),
   ]);
+});
+
+const events = eventsFor(role);
+const mandatoryCount = events.filter((event) => event.locked.length > 0).length;
+
+/** Avisos opcionais ligados, sobre o total de opcionais — os travados não contam. */
+const optionalSummary = computed(() => {
+  const current = preferences.value;
+  if (!current) return "…";
+  let on = 0;
+  let total = 0;
+  for (const event of events) {
+    for (const channel of NOTIFICATION_CHANNELS) {
+      if (event.locked.includes(channel.id)) continue;
+      total += 1;
+      if (current[event.id][channel.id]) on += 1;
+    }
+  }
+  return `${on} de ${total}`;
 });
 </script>
 
@@ -118,6 +142,16 @@ onMounted(async () => {
           <p class="text-[15px] leading-relaxed text-ink-soft">
             Por qual canal cada aviso chega, com as comunicações obrigatórias travadas.
           </p>
+          <dl class="mt-1 flex flex-col gap-1.5">
+            <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
+              <dt class="text-sm text-ink-muted">Avisos opcionais ligados</dt>
+              <dd class="text-sm font-medium text-ink">{{ optionalSummary }}</dd>
+            </div>
+            <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
+              <dt class="text-sm text-ink-muted">Obrigatórias</dt>
+              <dd class="text-sm font-medium text-ink">{{ mandatoryCount }} eventos</dd>
+            </div>
+          </dl>
         </div>
         <BaseButton
           variant="secondary"

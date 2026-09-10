@@ -143,12 +143,7 @@ const router = createRouter({
     {
       path: '/configuracoes/notificacoes',
       name: 'notification-settings',
-      component: underConstruction,
-      meta: {
-        title: 'Preferências de notificação',
-        description:
-          'A escolha de quais avisos chegam por e-mail ainda não foi implementada.',
-      },
+      component: () => import('@/views/NotificationSettingsView.vue'),
     },
     {
       path: '/ajuda',
