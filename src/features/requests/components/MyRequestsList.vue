@@ -58,7 +58,9 @@ const rows = computed<Row[]>(() =>
       request,
       open,
       right: findRight(request.rightNumeral)?.requestLabel ?? request.rightNumeral,
-      registered: `Registrada em ${formatDate(request.registeredAt)}`,
+      registered: request.origin
+        ? `Registrada pela encarregada a seu pedido em ${formatDate(request.registeredAt)}`
+        : `Registrada em ${formatDate(request.registeredAt)}`,
       situation,
       headline: open ? deadlineLabel(request) : closedHeadline(request),
       detail: open ? openDetail(request, situation) : closedDetail(request),

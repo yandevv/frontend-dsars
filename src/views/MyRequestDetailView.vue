@@ -8,6 +8,7 @@ import BaseButton from "@/shared/ui/BaseButton.vue";
 import CancelRequestsDialog from "@/features/requests/components/CancelRequestsDialog.vue";
 import RequestDeadlineCard from "@/features/requests/components/RequestDeadlineCard.vue";
 import RequestMessages from "@/features/requests/components/RequestMessages.vue";
+import RequestOriginNotice from "@/features/requests/components/RequestOriginNotice.vue";
 import RequestSentAnswer from "@/features/requests/components/RequestSentAnswer.vue";
 import RequestStatusChip from "@/features/requests/components/RequestStatusChip.vue";
 import RequestSubjectRequest from "@/features/requests/components/RequestSubjectRequest.vue";
@@ -255,6 +256,11 @@ function downloadAnswer() {
             Entendi
           </button>
         </div>
+
+        <RequestOriginNotice
+          v-if="request.origin"
+          :request="{ ...request, origin: request.origin }"
+        />
 
         <SurveyInvite
           v-if="surveyOpen && surveyPhase === 'convite'"

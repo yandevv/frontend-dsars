@@ -86,6 +86,13 @@ const router = createRouter({
       component: () => import('@/views/RequestQueueView.vue'),
     },
     {
+      // Declarada antes de `/painel/requisicoes/:id` pelo mesmo motivo da rota
+      // do titular: "nova" não é um identificador.
+      path: '/painel/requisicoes/nova',
+      name: 'request-on-behalf',
+      component: () => import('@/views/RegisterOnBehalfView.vue'),
+    },
+    {
       // A URL leva o identificador (UUID v7), não o protocolo: o protocolo é o
       // número que as pessoas leem e citam, o identificador é o que o sistema
       // referencia — e não expõe a sequência de pedidos da organização.

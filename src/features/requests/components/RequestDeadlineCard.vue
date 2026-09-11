@@ -58,7 +58,10 @@ const detail = computed(() => {
       ? `Você cancelou este pedido em ${formatDate(request.closedAt)}.`
       : `Cancelada pelo titular em ${formatDate(request.closedAt)}.`
   }
-  return `Prazo legal em ${formatDate(request.dueAt)} · registro em ${formatDate(request.registeredAt)}`
+  // Registrada pela encarregada, o prazo conta do dia em que o pedido chegou.
+  return request.origin
+    ? `Prazo legal em ${formatDate(request.dueAt)} · recebido em ${formatDate(request.origin.receivedAt)}`
+    : `Prazo legal em ${formatDate(request.dueAt)} · registro em ${formatDate(request.registeredAt)}`
 })
 </script>
 

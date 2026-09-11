@@ -123,6 +123,11 @@ export interface DataRequest {
   /** Quem atende na organização; ausente enquanto ninguém assumiu. */
   assignee?: string
   channel: string
+  /**
+   * Presente quando o pedido chegou fora do portal e a encarregada o registrou
+   * em nome do titular. O pedido é do titular; o registro é de quem o fez.
+   */
+  origin?: RequestOrigin
   unit?: string
   attachments: readonly RequestAttachment[]
   timeline: readonly RequestTimelineEntry[]
@@ -148,6 +153,20 @@ export interface SurveyAnswer {
   answeredAt: string
 }
 
+/** Por onde chegou um pedido feito fora do portal. */
+export type OriginChannel = 'balcao' | 'telefone' | 'email' | 'carta' | 'ouvidoria' | 'autoridade'
+
+/** O rastro do registro por terceiro (RF004 / RN018). */
+export interface RequestOrigin {
+  channel: OriginChannel
+  /** Número do atendimento, da carta ou do ofício, que liga ao original guardado fora. */
+  reference?: string
+  /** O dia em que o pedido chegou à organização — é dele que o prazo conta. */
+  receivedAt: string
+  /** A encarregada que registrou, como aparece na trilha e para o titular. */
+  registeredBy: string
+}
+
 /** O que o formulário do titular envia para abrir uma requisição (RF004). */
 export interface NewRequest {
   rightNumeral: string
@@ -163,4 +182,34 @@ export interface RequestReceipt {
   registeredAt: string
   dueAt: string
   attachmentCount: number
+}
+
+/** O titular do pedido registrado por terceiro, achado no cadastro ou digitado. */
+export interface OnBehalfSubject {
+  name: string
+  /** CPF completo: vai para o cadastro, e só a forma mascarada aparece na fila. */
+  cpf: string
+  /** Vazio quando o titular não informou — a resposta sai pelo canal de origem. */
+  email: string
+  phone?: string
+  /** Com conta no portal a requisição aparece na lista dele. */
+  hasAccount: boolean
+}
+
+/** O que o formulário da encarregada envia para registrar em nome do titular. */
+export interface OnBehalfRequest extends NewRequest {
+  subject: OnBehalfSubject
+  /** A caixa de verificação de identidade — sem ela não há registro. */
+  identityVerified: boolean
+  channel: OriginChannel | null
+  /** Dia do recebimento, no formato do campo de data (aaaa-mm-dd). */
+  receivedOn: string
+  reference?: string
+}
+
+/** O comprovante do registro por terceiro, com o vínculo à encarregada. */
+export interface OnBehalfReceipt extends RequestReceipt {
+  subjectName: string
+  subjectHasAccount: boolean
+  origin: RequestOrigin
 }

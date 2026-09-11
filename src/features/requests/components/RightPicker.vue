@@ -15,9 +15,16 @@ import { LGPD_RIGHTS } from '@/shared/constants/lgpdRights'
  * faz, não pelo número. O inciso volta depois do envio, no comprovante e na
  * requisição, onde serve para citar o pedido.
  */
-const { invalid = false } = defineProps<{
+const {
+  invalid = false,
+  description = 'Os direitos abaixo são os do art. 18 da LGPD. Em caso de dúvida, escolha o mais próximo (a pessoa encarregada poderá reclassificar e avisar você).',
+  disabled = false,
+} = defineProps<{
   /** Envio tentado sem escolha: o grupo inteiro passa a chamar atenção. */
   invalid?: boolean
+  /** A explicação sob o título — a encarregada lê outra, dirigida a quem registra. */
+  description?: string
+  disabled?: boolean
 }>()
 
 const model = defineModel<string>({ required: true })
@@ -26,7 +33,10 @@ const groupName = useId()
 </script>
 
 <template>
-  <fieldset class="flex flex-col gap-3.5">
+  <fieldset
+    class="flex flex-col gap-3.5"
+    :disabled="disabled"
+  >
     <legend class="flex flex-col gap-1">
       <span class="text-base font-semibold text-ink">
         Direito exercido
@@ -36,8 +46,7 @@ const groupName = useId()
         >*</span>
       </span>
       <span class="text-sm leading-normal text-ink-muted">
-        Os direitos abaixo são os do art. 18 da LGPD. Em caso de dúvida, escolha o mais próximo (a
-        pessoa encarregada poderá reclassificar e avisar você).
+        {{ description }}
       </span>
     </legend>
 

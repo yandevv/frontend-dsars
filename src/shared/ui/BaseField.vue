@@ -20,9 +20,10 @@ const {
   placeholder,
   autocomplete,
   required = false,
+  max,
 } = defineProps<{
   label: string
-  type?: 'text' | 'email' | 'password'
+  type?: 'text' | 'email' | 'password' | 'tel' | 'date'
   hint?: string
   /** Cor do auxílio: o design confirma acertos em verde, não só erros em vermelho. */
   hintTone?: 'muted' | 'positive'
@@ -40,6 +41,8 @@ const {
   placeholder?: string
   autocomplete?: string
   required?: boolean
+  /** Limite do campo de data — "hoje" quando o futuro não faz sentido. */
+  max?: string
 }>()
 
 const model = defineModel<string>({ required: true })
@@ -102,6 +105,7 @@ defineExpose({ focus: () => input.value?.focus() })
       :placeholder="placeholder"
       :autocomplete="autocomplete"
       :required="required"
+      :max="max"
       :aria-invalid="error ? 'true' : undefined"
       :aria-describedby="describedBy"
       :class="inputClasses"

@@ -11,12 +11,22 @@ import { delay } from '@/features/auth/services/fakeNetwork'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { uuidv7 } from '@/shared/utils/uuid'
 import { canEditMessage } from '@/features/requests/utils/messages'
+import { findOriginChannel } from '@/features/requests/constants/originChannels'
+import {
+  dueFromReceived,
+  isCpfShaped,
+  isFutureDay,
+  receivedAtOf,
+  subjectDocument,
+} from '@/features/requests/utils/onBehalf'
 import { TEAM_INBOX, notify, titularInbox } from '@/features/notifications/composables/useNotifications'
 import type {
   DataRequest,
   MessageActor,
   MessageKind,
   NewRequest,
+  OnBehalfReceipt,
+  OnBehalfRequest,
   RequestAnswer,
   RequestOutcome,
   RequestAttachment,
@@ -135,6 +145,110 @@ export async function createRequest(
     registeredAt,
     dueAt,
     attachmentCount: attachments.length,
+  }
+}
+
+/** O que impede um registro em nome do titular — as mesmas travas da tela. */
+export type OnBehalfRule =
+  | 'titular-incompleto'
+  | 'identidade-nao-verificada'
+  | 'sem-canal'
+  | 'data-futura'
+
+export class OnBehalfRuleError extends Error {
+  constructor(readonly rule: OnBehalfRule) {
+    super(rule)
+    this.name = 'OnBehalfRuleError'
+  }
+}
+
+/**
+ * Registra um pedido que chegou fora do portal, em nome do titular (RF004).
+ *
+ * O prazo conta do dia em que o pedido chegou à organização, não do registro:
+ * uma carta digitada duas semanas depois já nasce com o prazo quase esgotado,
+ * e isso precisa aparecer na fila em vez de ficar escondido pela demora.
+ */
+export async function registerOnBehalf(
+  input: OnBehalfRequest,
+  author: string,
+  now: Date = new Date(),
+): Promise<OnBehalfReceipt> {
+  await delay()
+
+  const { subject } = input
+  if (subject.name.trim().length < 3 || !isCpfShaped(subject.cpf)) {
+    throw new OnBehalfRuleError('titular-incompleto')
+  }
+  if (!input.identityVerified) throw new OnBehalfRuleError('identidade-nao-verificada')
+  if (!input.channel) throw new OnBehalfRuleError('sem-canal')
+  if (!input.receivedOn || isFutureDay(input.receivedOn, now)) {
+    throw new OnBehalfRuleError('data-futura')
+  }
+
+  const sequence = nextSequence++
+  const protocol = `2026-000${sequence}`
+  const registeredAt = now.toISOString()
+  const receivedAt = receivedAtOf(input.receivedOn, now)
+  const dueAt = dueFromReceived(input.receivedOn, now)
+  const channel = findOriginChannel(input.channel)
+  const reference = input.reference?.trim() || undefined
+  const right = findRight(input.rightNumeral)
+  const origin = { channel: input.channel, reference, receivedAt, registeredBy: author }
+
+  requests.unshift({
+    protocol,
+    id: uuidv7(now.getTime()),
+    rightNumeral: input.rightNumeral,
+    description: input.description.trim(),
+    status: 'em-analise',
+    subject: {
+      name: subject.name.trim(),
+      email: subject.email.trim(),
+      document: subjectDocument(subject.cpf),
+      verifiedAt: registeredAt,
+    },
+    registeredAt,
+    dueAt,
+    assignee: author,
+    channel: reference ? `${channel.label} · ${reference}` : channel.label,
+    origin,
+    attachments: input.attachments,
+    timeline: [
+      {
+        at: registeredAt,
+        title: 'Requisição registrada em nome do titular',
+        detail: `Pedido recebido ${channel.phrase} em ${formatDate(receivedAt)} e registrado por ${author}, com a identidade do titular verificada. Protocolo ${protocol}. Prazo legal: ${formatDate(dueAt)}, contado do recebimento.`,
+        author,
+      },
+    ],
+    notes: [],
+    messages: [],
+  })
+
+  const created = requests[0]!
+  // Sem conta não há caixa de avisos: o comprovante vai pelo canal de origem.
+  if (subject.hasAccount && subject.email.trim()) {
+    notify(titularInbox(subject.email.trim()), {
+      type: 'Nova requisição',
+      tone: 'neutro',
+      title: `A encarregada registrou a ${protocol} a seu pedido`,
+      detail: `${right?.requestLabel ?? 'Pedido'} recebido ${channel.phrase} em ${formatDate(receivedAt)}. Se você não reconhece este pedido, avise a encarregada.`,
+      reference: `Protocolo ${protocol}`,
+      target: forTitular(created),
+    })
+  }
+
+  return {
+    protocol,
+    id: created.id,
+    rightNumeral: right?.numeral ?? input.rightNumeral,
+    registeredAt,
+    dueAt,
+    attachmentCount: input.attachments.length,
+    subjectName: created.subject.name,
+    subjectHasAccount: subject.hasAccount,
+    origin,
   }
 }
 

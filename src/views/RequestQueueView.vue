@@ -98,11 +98,21 @@ function exportCsv() {
             {{ tenant.name }} · escopo da organização controladora
           </p>
         </div>
-        <QueueIndicators
-          :open="queue.openCount.value"
-          :overdue="queue.deadlineCounts.value.vencidas"
-          :due-soon="queue.deadlineCounts.value.proximas"
-        />
+        <div class="flex flex-col items-start gap-4 lg:items-end">
+          <QueueIndicators
+            :open="queue.openCount.value"
+            :overdue="queue.deadlineCounts.value.vencidas"
+            :due-soon="queue.deadlineCounts.value.proximas"
+          />
+          <!-- Para pedidos que chegaram por balcão, telefone, carta ou ouvidoria. -->
+          <BaseButton
+            size="sm"
+            variant="secondary"
+            :to="{ name: 'request-on-behalf' }"
+          >
+            Registrar em nome do titular
+          </BaseButton>
+        </div>
       </div>
 
       <QueueFilters

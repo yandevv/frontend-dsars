@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import BasePanel from '@/shared/ui/BasePanel.vue'
 import { findRight } from '@/shared/constants/lgpdRights'
+import { formatDate } from '@/shared/utils/date'
 import type { DataRequest } from '@/features/requests/types/request'
 import type { RequestAudience } from '@/features/requests/types/audience'
 
@@ -31,10 +32,22 @@ const { request, audience = 'encarregado' } = defineProps<{
         </div>
         <div class="flex flex-col gap-1">
           <dt class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
-            Canal de registro
+            {{ request.origin ? 'Canal de origem' : 'Canal de registro' }}
           </dt>
           <dd class="text-[15px] text-ink">
             {{ request.channel }}
+          </dd>
+        </div>
+        <div
+          v-if="request.origin"
+          class="flex flex-col gap-1"
+        >
+          <dt class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
+            Recebido em
+          </dt>
+          <dd class="text-[15px] text-ink">
+            {{ formatDate(request.origin.receivedAt) }} · registrado por
+            {{ request.origin.registeredBy }}
           </dd>
         </div>
         <div
