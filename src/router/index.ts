@@ -2,20 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import HomeView from '@/views/HomeView.vue'
 
-/**
- * Texto das rotas que ainda são um lugar reservado. Fica no `meta` para que
- * `UnderConstructionView` explique o que virá ali sem precisar de um
- * componente por rota.
- */
-declare module 'vue-router' {
-  interface RouteMeta {
-    title?: string
-    description?: string
-  }
-}
-
-const underConstruction = () => import('@/views/UnderConstructionView.vue')
-
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -145,12 +131,7 @@ const router = createRouter({
     {
       path: '/ajuda',
       name: 'help',
-      component: underConstruction,
-      meta: {
-        title: 'Ajuda',
-        description:
-          'O material de apoio sobre requisições de titulares ainda não foi implementado.',
-      },
+      component: () => import('@/views/HelpView.vue'),
     },
 
     {
