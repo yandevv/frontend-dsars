@@ -35,7 +35,7 @@ describe('Confirmação de e-mail', () => {
     cy.get('input[autocomplete="email"]').should('have.value', 'pendente@exemplo.com.br')
     cy.get('input[autocomplete="current-password"]').type('SenhaSegura!123')
     cy.get('button[type="submit"]').click()
-    cy.contains('Autenticado como titular').should('be.visible')
+    cy.location('pathname').should('eq', '/requisicoes')
   })
 
   it('mostra o novo e-mail em vigor na troca', () => {

@@ -17,6 +17,12 @@ vi.mock('@/features/auth/services/sessionService', async (importOriginal) => ({
   signIn,
 }))
 
+const replace = vi.hoisted(() => vi.fn<(to: unknown) => Promise<void>>(() => Promise.resolve()))
+vi.mock('vue-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-router')>()),
+  useRouter: () => ({ replace }),
+}))
+
 vi.mock('@/features/auth/services/emailConfirmationService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/auth/services/emailConfirmationService')>()),
   resendConfirmation,
@@ -49,6 +55,7 @@ async function submit(wrapper: VueWrapper) {
 describe('LoginForm', () => {
   beforeEach(() => {
     signIn.mockReset()
+    replace.mockClear()
     resendConfirmation.mockReset()
   })
 
@@ -126,7 +133,7 @@ describe('LoginForm', () => {
     expect(wrapper.text()).toContain('Enviamos outro link para pendente@exemplo.com.br.')
   })
 
-  it('entra e diz qual perfil foi autenticado, sem perguntar na tela', async () => {
+  it('entra e leva o titular aos próprios pedidos, sem perguntar o perfil', async () => {
     signIn.mockResolvedValue(TITULAR)
     const wrapper = render()
     await fill(wrapper)
@@ -137,20 +144,29 @@ describe('LoginForm', () => {
       email: TITULAR.email,
       password: 'SenhaSegura!123',
     })
-    expect(wrapper.text()).toContain('Autenticado como titular')
-    expect(wrapper.text()).toContain('Sessão expira após 30 minutos de inatividade')
-    expect(wrapper.find('form').exists()).toBe(false)
+    expect(replace).toHaveBeenCalledWith({ name: 'my-requests' })
   })
 
-  it('anuncia a sessão de 7 dias quando "manter-me conectado" é marcado', async () => {
-    signIn.mockResolvedValue(TITULAR)
+  it('leva a encarregada à fila da organização', async () => {
+    signIn.mockResolvedValue({
+      ...TITULAR,
+      email: 'helena.vasconcelos@meridianosaude.org.br',
+      role: 'encarregado',
+    })
     const wrapper = render()
     await fill(wrapper)
-    await wrapper.get('input[type="checkbox"]').setValue(true)
 
     await submit(wrapper)
 
-    expect(wrapper.text()).toContain('Token válido por 7 dias')
+    expect(replace).toHaveBeenCalledWith({ name: 'request-queue' })
+  })
+
+  it('diz antes de entrar quanto tempo a sessão vale', async () => {
+    const wrapper = render()
+    expect(wrapper.text()).toContain('A sessão expira após 30 minutos sem atividade.')
+
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    expect(wrapper.text()).toContain('A sessão vale por 7 dias neste aparelho.')
   })
 
   it('explica a volta por sessão expirada, quando a rota avisa (RN010)', () => {

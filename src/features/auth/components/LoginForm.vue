@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef } from 'vue'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
@@ -8,6 +8,7 @@ import BaseCheckbox from '@/shared/ui/BaseCheckbox.vue'
 import BaseField from '@/shared/ui/BaseField.vue'
 import GoogleAuthButton from '@/shared/ui/GoogleAuthButton.vue'
 import { startSession } from '@/features/auth/composables/useSession'
+import { ROLE_HOME } from '@/features/auth/constants/roleHome'
 import { useLoginAttempts } from '@/features/auth/composables/useLoginAttempts'
 import {
   LOGIN_LOCKOUT_MINUTES,
@@ -18,7 +19,6 @@ import {
 } from '@/features/auth/constants/loginPolicy'
 import { resendConfirmation } from '@/features/auth/services/emailConfirmationService'
 import { SignInError, signIn } from '@/features/auth/services/sessionService'
-import type { Account, AccountRole } from '@/features/auth/types/auth'
 
 /**
  * Acesso à conta (RF003, RN008 a RN010).
@@ -41,9 +41,10 @@ const password = ref('')
 const keepSignedIn = ref(false)
 const showPassword = ref(false)
 
+const router = useRouter()
+
 const status = ref<'idle' | 'authenticating' | 'signed-in'>('idle')
 const failure = ref<'credentials' | 'unconfirmed' | 'unexpected' | null>(null)
-const account = ref<Account | null>(null)
 const resendStatus = ref<'idle' | 'sending' | 'sent'>('idle')
 
 const alert = useTemplateRef<HTMLElement>('alert')
@@ -51,7 +52,8 @@ const emailField = useTemplateRef<InstanceType<typeof BaseField>>('emailField')
 
 const { attempts, remaining, isLocked, countdown, registerFailure, reset } = useLoginAttempts()
 
-const isBusy = computed(() => status.value === 'authenticating')
+// Autenticado, o formulário segue travado até a troca de tela terminar.
+const isBusy = computed(() => status.value !== 'idle')
 const fieldsLocked = computed(() => isBusy.value || isLocked.value)
 
 /** O aviso do RN010 some assim que houver qualquer outro retorno na tela. */
@@ -85,27 +87,17 @@ const submitLabel = computed(() => {
   return 'Entrar'
 })
 
-const ROLE_LABELS: Record<AccountRole, string> = {
-  titular: 'titular',
-  encarregado: 'encarregado',
-}
-
-const DESTINATIONS: Record<AccountRole, string> = {
-  titular: 'O destino desta conta é o portal de requisições: seus pedidos, prazos e respostas.',
-  encarregado:
-    'O destino desta conta é o painel de atendimento: a fila de requisições da organização.',
-}
-
 /** Leva junto o endereço já digitado, para não pedir duas vezes a mesma coisa. */
 const recoveryRoute = computed(() => ({
   name: 'password-recovery',
   query: email.value.trim() ? { email: email.value.trim() } : undefined,
 }))
 
+/** O efeito da caixa, dito antes de entrar — depois do acesso a tela já é outra. */
 const sessionText = computed(() =>
   keepSignedIn.value
-    ? `Token válido por ${SESSION_PERSISTENT_DAYS} dias, conforme a opção manter-me conectado.`
-    : `Sessão expira após ${SESSION_IDLE_MINUTES} minutos de inatividade.`,
+    ? `A sessão vale por ${SESSION_PERSISTENT_DAYS} dias neste aparelho.`
+    : `A sessão expira após ${SESSION_IDLE_MINUTES} minutos sem atividade.`,
 )
 
 async function focusAlert() {
@@ -127,10 +119,12 @@ async function submit() {
 
   status.value = 'authenticating'
   try {
-    account.value = await signIn({ email: email.value.trim(), password: password.value })
-    startSession(account.value)
+    const account = await signIn({ email: email.value.trim(), password: password.value })
+    startSession(account)
     status.value = 'signed-in'
     reset()
+    // `replace`: voltar do painel não deve cair de novo no formulário de acesso.
+    await router.replace(ROLE_HOME[account.role])
   } catch (error) {
     status.value = 'idle'
     if (error instanceof SignInError && error.reason === 'email-nao-confirmado') {
@@ -168,25 +162,7 @@ async function correctEmail() {
 </script>
 
 <template>
-  <div
-    v-if="status === 'signed-in' && account"
-    class="flex flex-col gap-[18px]"
-  >
-    <BaseAlert
-      variant="success"
-      size="md"
-      :title="`Autenticado como ${ROLE_LABELS[account.role]}`"
-    >
-      <p>{{ DESTINATIONS[account.role] }}</p>
-      <p>Essa tela ainda não faz parte desta entrega.</p>
-      <p class="text-ink-soft">
-        {{ sessionText }}
-      </p>
-    </BaseAlert>
-  </div>
-
   <form
-    v-else
     class="flex flex-col gap-[26px]"
     novalidate
     @submit.prevent="submit"
@@ -339,6 +315,7 @@ async function correctEmail() {
         :disabled="fieldsLocked"
       >
         <span class="text-[15px] text-ink">Manter-me conectado</span>
+        <span class="text-[13px] text-ink-muted">{{ sessionText }}</span>
       </BaseCheckbox>
 
       <div class="flex flex-col gap-3 pt-0.5">

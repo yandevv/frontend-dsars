@@ -55,18 +55,34 @@ describe('Acesso à conta', () => {
     cy.contains('Tentativas usadas').should('not.exist')
   })
 
-  it('leva o titular ao destino do seu perfil, sem perguntar qual é', () => {
+  it('leva o titular aos próprios pedidos, sem perguntar o perfil', () => {
     signIn('titular@exemplo.com.br', DEMO_PASSWORD)
 
-    cy.contains('Autenticado como titular').should('be.visible')
-    cy.contains('portal de requisições').should('be.visible')
+    cy.location('pathname').should('eq', '/requisicoes')
+    cy.get('h1').should('contain.text', 'Minhas requisições')
   })
 
-  it('leva a encarregada ao destino do seu perfil', () => {
+  it('leva a encarregada à fila, e as páginas comuns passam a falar com ela', () => {
+    // Largura de computador: o link de ajuda fica à vista no cabeçalho.
+    cy.viewport(1440, 900)
     signIn('helena.vasconcelos@meridianosaude.org.br', DEMO_PASSWORD)
 
-    cy.contains('Autenticado como encarregado').should('be.visible')
-    cy.contains('painel de atendimento').should('be.visible')
+    cy.location('pathname').should('eq', '/painel/fila')
+    cy.get('h1').should('contain.text', 'Fila de atendimento')
+
+    // Sem recarregar: a sessão vive na memória da página.
+    cy.get('header').contains('a', 'Ajuda').click()
+    cy.contains('h2', 'Registrar em nome do titular').should('be.visible')
+  })
+
+  it('não volta ao formulário de acesso pelo botão de voltar', () => {
+    cy.visit('/')
+    cy.get('header').contains('a', 'Entrar').click()
+    signIn('titular@exemplo.com.br', DEMO_PASSWORD)
+    cy.location('pathname').should('eq', '/requisicoes')
+
+    cy.go('back')
+    cy.location('pathname').should('eq', '/')
   })
 
   it('explica a volta por sessão expirada (RN010)', () => {
