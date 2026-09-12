@@ -1,6 +1,7 @@
 import { NOTIFICATION_EVENTS, defaultPreferences } from '@/features/settings/constants/notificationEvents'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { normalizeEmail } from '@/features/auth/data/accounts'
+import { recordAccountEvent } from '@/features/audit/services/auditService'
 import type { NotificationPreferences } from '@/features/settings/types/preferences'
 
 /**
@@ -46,5 +47,13 @@ export async function savePreferences(
   await delay()
   const saved = enforceLocked(preferences)
   stored.set(normalizeEmail(email), saved)
+  recordAccountEvent(
+    { email },
+    {
+      operation: 'alteracao',
+      action: 'Preferências de notificação alteradas',
+      detail: 'Canais por evento salvos. As comunicações obrigatórias continuam por e-mail.',
+    },
+  )
   return clonePreferences(saved)
 }

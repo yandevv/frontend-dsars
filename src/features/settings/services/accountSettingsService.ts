@@ -4,6 +4,7 @@ import { DEMO_PROFILES } from '@/features/settings/data/profiles'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { formatPhone, isValidPhone } from '@/features/settings/utils/mask'
 import { recordConfirmationSent } from '@/features/auth/services/emailConfirmationService'
+import { recordAccountEvent } from '@/features/audit/services/auditService'
 import type { AccountProfile, EditableField } from '@/features/settings/types/profile'
 
 /**
@@ -69,6 +70,15 @@ export async function updateProfile(
     profile.phone = formatPhone(value)
   }
 
+  recordAccountEvent(
+    { email },
+    {
+      operation: 'alteracao',
+      action: field === 'name' ? 'Nome alterado' : 'Telefone alterado',
+      detail: 'Alteração confirmada nas configurações da conta.',
+    },
+  )
+
   return { ...profile }
 }
 
@@ -92,6 +102,14 @@ export async function requestEmailChange(
 
   profile.pendingEmail = next
   recordConfirmationSent(next)
+  recordAccountEvent(
+    { email },
+    {
+      operation: 'alteracao',
+      action: 'Troca de e-mail solicitada',
+      detail: 'Senha atual conferida. O novo endereço fica pendente até a confirmação pelo link.',
+    },
+  )
   return { ...profile }
 }
 
@@ -100,5 +118,13 @@ export async function cancelEmailChange(email: string): Promise<AccountProfile> 
   const profile = profileOf(email)
   if (!profile.pendingEmail) throw new ProfileError('sem-troca-pendente')
   delete profile.pendingEmail
+  recordAccountEvent(
+    { email },
+    {
+      operation: 'alteracao',
+      action: 'Troca de e-mail cancelada',
+      detail: 'O endereço atual continua valendo para acesso e avisos.',
+    },
+  )
   return { ...profile }
 }

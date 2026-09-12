@@ -108,12 +108,7 @@ const router = createRouter({
     {
       path: '/painel/auditoria',
       name: 'audit-log',
-      component: underConstruction,
-      meta: {
-        title: 'Registros de auditoria',
-        description:
-          'A trilha de auditoria completa da organização ainda não foi implementada.',
-      },
+      component: () => import('@/views/AuditLogView.vue'),
     },
     {
       path: '/painel/equipe',

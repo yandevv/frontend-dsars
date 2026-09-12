@@ -3,6 +3,7 @@ import { PASSWORD_RULES } from '@/features/auth/constants/passwordPolicy'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { daysFromNow } from '@/shared/utils/date'
 import { inboxOf, notify } from '@/features/notifications/composables/useNotifications'
+import { recordAccountEvent } from '@/features/audit/services/auditService'
 import type { Account } from '@/features/auth/types/auth'
 import type { AccountSession, SecurityOverview } from '@/features/settings/types/security'
 
@@ -109,8 +110,12 @@ export async function fetchSecurity(email: string): Promise<SecurityOverview> {
   return overview(stateOf(email))
 }
 
-/** Todo evento de segurança gera aviso, e esse aviso não pode ser desligado. */
+/**
+ * Todo evento de segurança gera aviso, e esse aviso não pode ser desligado.
+ * Gera também o registro na trilha, com o mesmo texto.
+ */
 function securityNotice(account: Pick<Account, 'role' | 'email'>, title: string, detail: string) {
+  recordAccountEvent(account, { operation: 'seguranca', action: title, detail })
   notify(inboxOf(account), {
     type: 'Segurança da conta',
     tone: 'alerta',

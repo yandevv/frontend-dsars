@@ -12,6 +12,8 @@ import QueueTable from '@/features/requests/components/QueueTable.vue'
 import { DEADLINE_ALERT_DAYS, LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import { QUEUE_SORT_LABELS, useRequestQueue } from '@/features/requests/composables/useRequestQueue'
 import { downloadText } from '@/shared/utils/download'
+import { recordAccountEvent } from '@/features/audit/services/auditService'
+import { useSession } from '@/features/auth/composables/useSession'
 import { queueToCsv } from '@/features/requests/utils/csv'
 import { useTenant } from '@/features/tenant/composables/useTenant'
 
@@ -80,8 +82,17 @@ function openSelected() {
 }
 
 /** Sai o que está na tela, com os filtros aplicados — não a fila inteira. */
+const { account } = useSession('encarregado')
+
 function exportCsv() {
   downloadText('fila-de-atendimento.csv', queueToCsv(queue.sorted.value))
+  // A fila leva nome de titulares: sair dela em arquivo é operação auditada.
+  recordAccountEvent(account.value, {
+    operation: 'exportacao',
+    action: 'Fila de atendimento exportada',
+    detail: `${queue.sorted.value.length} requisições em CSV, com os filtros aplicados na tela.`,
+    resource: { kind: 'fila', label: 'Fila de atendimento' },
+  })
 }
 </script>
 

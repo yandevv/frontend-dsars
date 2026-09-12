@@ -13,6 +13,7 @@ import {
   type ProfileRefusal,
 } from "@/features/settings/services/accountSettingsService";
 import { REVEAL_SECONDS, useReveal } from "@/features/settings/composables/useReveal";
+import { recordAccountEvent } from "@/features/audit/services/auditService";
 import { currentRole, useSession } from "@/features/auth/composables/useSession";
 import { maskDocument, maskPhone } from "@/features/settings/utils/mask";
 import type { AccountProfile, EditableField } from "@/features/settings/types/profile";
@@ -28,7 +29,14 @@ const role = currentRole();
 const { account } = useSession(role);
 
 const profile = ref<AccountProfile | null>(null);
-const reveal = useReveal();
+// Ver o dado sem máscara é acesso a dado pessoal, e entra na trilha.
+const reveal = useReveal(REVEAL_SECONDS, (key) =>
+  recordAccountEvent(account.value, {
+    operation: "acesso",
+    action: key === "document" ? "Documento exibido sem máscara" : "Telefone exibido sem máscara",
+    detail: `O dado ficou visível por ${REVEAL_SECONDS} segundos na tela de dados pessoais.`,
+  }),
+);
 
 onMounted(async () => {
   profile.value = await fetchProfile(account.value.email);

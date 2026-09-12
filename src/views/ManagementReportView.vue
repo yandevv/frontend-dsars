@@ -11,6 +11,8 @@ import ReportSatisfaction from '@/features/reports/components/ReportSatisfaction
 import ReportSkeleton from '@/features/reports/components/ReportSkeleton.vue'
 import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import { downloadText } from '@/shared/utils/download'
+import { recordAccountEvent } from '@/features/audit/services/auditService'
+import { useSession } from '@/features/auth/composables/useSession'
 import { formatDateTime } from '@/shared/utils/date'
 import { indicatorsToCsv, recordsToCsv } from '@/features/reports/utils/csv'
 import { useManagementReport } from '@/features/reports/composables/useManagementReport'
@@ -48,7 +50,23 @@ const scope = computed(() => {
     .join(' · ')
 })
 
+const { account } = useSession('encarregado')
+
+const FORMAT_LABELS: Record<ExportFormat, string> = {
+  pdf: 'Indicadores em PDF',
+  csv: 'Indicadores em CSV',
+  base: 'Base analítica anonimizada em CSV',
+}
+
 function exportReport(format: ExportFormat) {
+  // A exportação entra na trilha com quem exportou e o período consultado.
+  recordAccountEvent(account.value, {
+    operation: 'exportacao',
+    action: 'Relatório gerencial exportado',
+    detail: `${FORMAT_LABELS[format]} · ${scope.value}.`,
+    resource: { kind: 'relatorio', label: 'Relatório gerencial' },
+  })
+
   if (format === 'pdf') {
     // O navegador já sabe transformar esta página em PDF, e o resultado sai com
     // o mesmo recorte que está na tela.
