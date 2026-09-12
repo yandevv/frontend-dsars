@@ -113,12 +113,7 @@ const router = createRouter({
     {
       path: '/painel/equipe',
       name: 'team',
-      component: underConstruction,
-      meta: {
-        title: 'Equipe e permissões',
-        description:
-          'A gestão de quem atende requisições na organização ainda não foi implementada.',
-      },
+      component: () => import('@/views/TeamView.vue'),
     },
 
     // ── Comuns aos dois perfis ───────────────────────────────────────────────

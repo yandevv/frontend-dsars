@@ -16,7 +16,7 @@ export type AuditOperation =
 
 /** Sobre o que a operação agiu. */
 export interface AuditResource {
-  kind: 'requisicao' | 'conta' | 'relatorio' | 'fila' | 'auditoria' | 'area-restrita'
+  kind: 'requisicao' | 'conta' | 'relatorio' | 'fila' | 'auditoria' | 'area-restrita' | 'equipe'
   /** Como a tela escreve o recurso — o protocolo, "Conta de Marina…". */
   label: string
   /** Presente nas requisições: a trilha leva à página delas. */

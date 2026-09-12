@@ -19,6 +19,10 @@ export interface Invite {
   expiresAt: string
   /** Presente quando a conta do convite já foi criada. */
   usedAt?: string
+  /** Revogado pela organização antes do uso: o link deixa de valer. */
+  revokedAt?: string
+  /** A função na equipe, como quem convidou a descreveu. */
+  jobTitle?: string
 }
 
 /** Dados que a tela de convite envia para criar a conta vinculada. */
