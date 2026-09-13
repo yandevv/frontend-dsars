@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
+import {
+  formatDue,
+  requestIsImmediate,
+} from '@/features/requests/utils/responseDeadline'
 import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import { daysLeft, deadlineLabel, deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { formatDate } from '@/shared/utils/date'
@@ -19,6 +23,16 @@ const { request, audience = 'encarregado' } = defineProps<{
 }>()
 
 const situation = computed(() => deadlineStatusOf(request))
+const immediate = computed(() => requestIsImmediate(request))
+const due = computed(() => formatDue(request.dueAt, immediate.value))
+
+/** O prazo deste pedido, em palavras — varia com o direito e o formato. */
+const rule = computed(() => {
+  const from = request.origin ? 'do recebimento' : 'do registro'
+  return immediate.value
+    ? `Resposta imediata, em até 24 horas ${from}`
+    : `Até ${LEGAL_DEADLINE_DAYS} dias, contados ${from}`
+})
 
 const cardClasses = computed(
   () =>
@@ -48,6 +62,11 @@ const headline = computed(() => {
 })
 
 const detail = computed(() => {
+  if (request.status === 'concluida' && request.closedAt && immediate.value) {
+    return request.closedAt <= request.dueAt
+      ? 'Respondida dentro das 24 horas do prazo legal.'
+      : 'Respondida depois das 24 horas do prazo legal.'
+  }
   if (request.status === 'concluida' && request.closedAt) {
     const slack = daysLeft(request, new Date(request.closedAt))
     if (slack < 0) return `Encerrada com ${Math.abs(slack)} dias de atraso sobre o prazo legal.`
@@ -60,8 +79,8 @@ const detail = computed(() => {
   }
   // Registrada pela encarregada, o prazo conta do dia em que o pedido chegou.
   return request.origin
-    ? `Prazo legal em ${formatDate(request.dueAt)} · recebido em ${formatDate(request.origin.receivedAt)}`
-    : `Prazo legal em ${formatDate(request.dueAt)} · registro em ${formatDate(request.registeredAt)}`
+    ? `Prazo legal em ${due.value} · recebido em ${formatDate(request.origin.receivedAt)}`
+    : `Prazo legal em ${due.value} · registro em ${formatDate(request.registeredAt)}`
 })
 </script>
 
@@ -86,15 +105,13 @@ const detail = computed(() => {
       v-if="audience === 'titular'"
       class="text-sm leading-normal text-ink-soft"
     >
-      A organização tem até {{ LEGAL_DEADLINE_DAYS }} dias, contados do registro, para responder.
-      Um pedido de complemento não suspende a contagem.
+      {{ rule }}. Um pedido de complemento não suspende a contagem.
     </p>
     <p
       v-else
       class="text-sm leading-normal text-ink-soft"
     >
-      {{ LEGAL_DEADLINE_DAYS }} dias contados do registro, como determina a LGPD. Atrasos entram
-      no relatório trimestral à diretoria.
+      {{ rule }}, como determina a LGPD. Atrasos entram no relatório trimestral à diretoria.
     </p>
   </section>
 </template>

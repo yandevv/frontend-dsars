@@ -166,6 +166,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
     protocol: '2026-000403',
     id: '01a02e7e-0cef-75a5-9b71-9d773cb4842f',
     rightNumeral: 'II',
+    accessFormat: 'completo',
     description:
       'Quero a cópia dos exames laboratoriais realizados na unidade Centro entre janeiro e junho de 2026, incluindo os laudos e a identificação de quem os solicitou.',
     status: 'em-analise',
@@ -294,6 +295,7 @@ export const DEMO_REQUESTS: readonly DataRequest[] = [
     protocol: '2026-000447',
     id: '01a05cd7-a5bc-7af8-b6f4-62cebc142f46',
     rightNumeral: 'II',
+    accessFormat: 'completo',
     description:
       'Peço a declaração completa dos dados que a rede mantém sobre mim: quais são, de onde vieram, para que servem e com quem foram compartilhados.',
     status: 'em-analise',

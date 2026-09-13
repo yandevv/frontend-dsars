@@ -4,8 +4,18 @@
  * exatamente os mesmos números, e vê-los juntos evita que um deles mude sozinho.
  */
 
-/** Art. 19 da LGPD: 15 dias corridos contados do registro. */
+/**
+ * Art. 19 da LGPD: até 15 dias corridos contados do registro para a declaração
+ * completa. É também o prazo que a organização aplica aos demais direitos.
+ */
 export const LEGAL_DEADLINE_DAYS = 15
+
+/**
+ * Resposta imediata: confirmação de tratamento e acesso em formato simplificado
+ * (RN019). A lei não diz em horas o que é "imediato"; a organização adota 24
+ * horas a partir do registro, iguais para um pedido das 9h e um das 23h50.
+ */
+export const IMMEDIATE_DEADLINE_HOURS = 24
 
 /** A partir de quantos dias restantes a fila passa a chamar atenção. */
 export const DEADLINE_ALERT_DAYS = 3

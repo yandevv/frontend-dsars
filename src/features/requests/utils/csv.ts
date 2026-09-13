@@ -2,6 +2,7 @@ import { REQUEST_STATUS_LABELS } from '@/features/requests/constants/requestStat
 import { deadlineLabel } from '@/features/requests/utils/deadline'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { formatDate } from '@/shared/utils/date'
+import { formatDue, requestIsImmediate } from '@/features/requests/utils/responseDeadline'
 import type { DataRequest } from '@/features/requests/types/request'
 
 const COLUMNS = [
@@ -37,7 +38,7 @@ export function queueToCsv(requests: readonly DataRequest[]): string {
       request.subject.name,
       REQUEST_STATUS_LABELS[request.status],
       formatDate(request.registeredAt),
-      formatDate(request.dueAt),
+      formatDue(request.dueAt, requestIsImmediate(request)),
       deadlineLabel(request),
       request.assignee ?? 'Sem responsável',
     ]

@@ -11,6 +11,7 @@ import { abbreviateName } from '@/shared/utils/name'
 import { deadlineLabel, deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { formatDate } from '@/shared/utils/date'
+import { formatDue, requestIsImmediate } from '@/features/requests/utils/responseDeadline'
 import type { DataRequest } from '@/features/requests/types/request'
 
 /**
@@ -132,7 +133,7 @@ function toggle(id: string) {
             {{ deadlineLabel(request) }}
           </p>
           <p class="text-[13px] text-ink-muted">
-            {{ formatDate(request.dueAt) }}
+            {{ formatDue(request.dueAt, requestIsImmediate(request)) }}
           </p>
         </td>
         <td class="py-[18px] pr-4 align-middle">

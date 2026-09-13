@@ -194,8 +194,8 @@ async function confirmCancel(reason: string) {
           <p class="max-w-[64ch] text-base leading-relaxed text-ink-soft">
             <template v-if="confirmed">
               A LGPD garante que você peça acesso, correção, eliminação, portabilidade e informações
-              sobre o uso dos seus dados. A organização tem até
-              {{ LEGAL_DEADLINE_DAYS }} dias para responder.
+              sobre o uso dos seus dados. A organização responde em até 24 horas os pedidos de
+              confirmação e de acesso simplificado, e tem até {{ LEGAL_DEADLINE_DAYS }} dias para os demais.
             </template>
             <template v-else>
               Confirme o e-mail para liberar o registro. Enquanto isso, você pode consultar os

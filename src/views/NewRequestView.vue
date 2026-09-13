@@ -8,7 +8,7 @@ import NewRequestForm from '@/features/requests/components/NewRequestForm.vue'
 import RequestReceiptAside from '@/features/requests/components/RequestReceiptAside.vue'
 import RequestReceiptCard from '@/features/requests/components/RequestReceiptCard.vue'
 import { findRight } from '@/shared/constants/lgpdRights'
-import type { RequestReceipt } from '@/features/requests/types/request'
+import type { AccessFormat, RequestReceipt } from '@/features/requests/types/request'
 
 /**
  * Turno 1 · Tela 6 — Nova requisição (RF004, art. 18 da LGPD).
@@ -22,6 +22,7 @@ const receipt = ref<RequestReceipt | null>(null)
 
 /** O direito escolhido no formulário, para o prazo na coluna de apoio. */
 const chosenNumeral = ref('')
+const chosenFormat = ref<AccessFormat | ''>('')
 
 const chosenRight = computed(() => findRight(chosenNumeral.value))
 
@@ -32,6 +33,7 @@ function onRegistered(registered: RequestReceipt) {
 function restart() {
   receipt.value = null
   chosenNumeral.value = ''
+  chosenFormat.value = ''
 }
 </script>
 
@@ -57,10 +59,14 @@ function restart() {
         <template v-else>
           <NewRequestForm
             v-model:right="chosenNumeral"
+            v-model:access-format="chosenFormat"
             :account="account"
             @registered="onRegistered"
           />
-          <NewRequestAside :right="chosenRight" />
+          <NewRequestAside
+            :right="chosenRight"
+            :access-format="chosenFormat || undefined"
+          />
         </template>
       </div>
     </div>

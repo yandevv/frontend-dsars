@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
 
+import AccessFormatPicker from '@/features/requests/components/AccessFormatPicker.vue'
 import AttachmentPicker from '@/features/requests/components/AttachmentPicker.vue'
 import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
@@ -9,12 +10,20 @@ import RightPicker from '@/features/requests/components/RightPicker.vue'
 import {
   DESCRIPTION_MAX_LENGTH,
   DESCRIPTION_MIN_LENGTH,
-  LEGAL_DEADLINE_DAYS,
 } from '@/features/requests/constants/requestPolicy'
-import { addDays, formatDate } from '@/shared/utils/date'
+import {
+  dueAtFor,
+  formatDue,
+  isImmediate,
+  needsAccessFormat,
+} from '@/features/requests/utils/responseDeadline'
 import { createRequest } from '@/features/requests/services/requestService'
 import type { Account } from '@/features/auth/types/auth'
-import type { RequestAttachment, RequestReceipt } from '@/features/requests/types/request'
+import type {
+  AccessFormat,
+  RequestAttachment,
+  RequestReceipt,
+} from '@/features/requests/types/request'
 
 /**
  * Abertura de uma requisição de titular (RF004).
@@ -34,6 +43,14 @@ const emit = defineEmits<{ registered: [RequestReceipt] }>()
  */
 const rightNumeral = defineModel<string>('right', { required: true })
 
+/** O formato do acesso decide o prazo, e o prazo aparece na coluna ao lado. */
+const accessFormat = defineModel<AccessFormat | ''>('accessFormat', { default: '' })
+
+// Trocar de direito apaga o formato: ele só tem sentido no acesso aos dados.
+watch(rightNumeral, (numeral) => {
+  if (!needsAccessFormat(numeral)) accessFormat.value = ''
+})
+
 const form = reactive({
   description: '',
   attachments: [] as RequestAttachment[],
@@ -47,19 +64,30 @@ const summary = useTemplateRef<HTMLElement>('summary')
 const sending = computed(() => status.value === 'sending')
 const rightChosen = computed(() => rightNumeral.value !== '')
 const descriptionOk = computed(() => form.description.trim().length >= DESCRIPTION_MIN_LENGTH)
-const isComplete = computed(() => rightChosen.value && descriptionOk.value)
+const formatOk = computed(() => !needsAccessFormat(rightNumeral.value) || accessFormat.value !== '')
+const isComplete = computed(() => rightChosen.value && formatOk.value && descriptionOk.value)
 
 const missing = computed(() =>
   [
     rightChosen.value ? null : 'Escolha o direito exercido',
+    formatOk.value ? null : 'escolha o formato do acesso',
     descriptionOk.value ? null : 'descreva o pedido',
   ].filter((item): item is string => item !== null),
 )
 
-const summaryTitle = computed(() =>
-  missing.value.length === 1
-    ? 'Falta um campo obrigatório'
-    : 'Faltam dois campos obrigatórios',
+/** "a", "a e b", "a, b e c". */
+const missingText = computed(() => {
+  const items = missing.value
+  const text =
+    items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} e ${items[items.length - 1]}`
+  return text.charAt(0).toUpperCase() + text.slice(1)
+})
+
+const summaryTitle = computed(
+  () =>
+    ({ 1: 'Falta um campo obrigatório', 2: 'Faltam dois campos obrigatórios' })[
+      missing.value.length
+    ] ?? 'Faltam três campos obrigatórios',
 )
 
 const descriptionError = computed(() => {
@@ -67,14 +95,18 @@ const descriptionError = computed(() => {
   return `Descreva com um pouco mais de detalhe — mínimo de ${DESCRIPTION_MIN_LENGTH} caracteres.`
 })
 
-const dueAt = computed(() => addDays(new Date().toISOString(), LEGAL_DEADLINE_DAYS))
+const format = computed(() => accessFormat.value || undefined)
+const dueAt = computed(() => dueAtFor(new Date().toISOString(), rightNumeral.value, format.value))
 
 const submitHint = computed(() => {
   if (sending.value) {
     return 'Aguarde: estamos gerando o protocolo e o identificador desta requisição.'
   }
   if (isComplete.value) {
-    return `Ao enviar, geramos protocolo e identificador e começamos a contar o prazo até ${formatDate(dueAt.value)}.`
+    const immediate = isImmediate(rightNumeral.value, format.value)
+    return immediate
+      ? `Ao enviar, geramos protocolo e identificador. Este pedido tem resposta imediata: até ${formatDue(dueAt.value, true)}.`
+      : `Ao enviar, geramos protocolo e identificador e começamos a contar o prazo até ${formatDue(dueAt.value, false)}.`
   }
   return 'Direito exercido e descrição são obrigatórios. Os anexos são opcionais.'
 })
@@ -96,6 +128,7 @@ async function submit() {
     const receipt = await createRequest(
       {
         rightNumeral: rightNumeral.value,
+        accessFormat: format.value,
         description: form.description,
         attachments: form.attachments,
       },
@@ -142,13 +175,20 @@ async function submit() {
         v-else
         :title="summaryTitle"
       >
-        <p>{{ missing.join(' e ') }} para enviar.</p>
+        <p>{{ missingText }} para enviar.</p>
       </BaseAlert>
     </div>
 
     <RightPicker
       v-model="rightNumeral"
       :invalid="attempted && !rightChosen"
+    />
+
+    <AccessFormatPicker
+      v-if="needsAccessFormat(rightNumeral)"
+      v-model="accessFormat"
+      :invalid="attempted && !formatOk"
+      :disabled="sending"
     />
 
     <BaseTextarea

@@ -79,9 +79,37 @@ describe('NewRequestForm', () => {
     const wrapper = render()
     expect(wrapper.text()).toContain('Direito exercido e descrição são obrigatórios')
 
-    await wrapper.setProps({ right: 'II' })
-    await wrapper.find('textarea').setValue('Quero a cópia dos exames do primeiro semestre.')
+    await wrapper.setProps({ right: 'III' })
+    await wrapper.find('textarea').setValue('Quero corrigir o endereço do meu cadastro.')
 
     expect(wrapper.text()).toContain('começamos a contar o prazo até')
+  })
+
+  it('pede o formato quando o direito é o acesso aos dados', async () => {
+    const wrapper = render()
+    expect(wrapper.text()).not.toContain('Como você quer receber os dados?')
+
+    await wrapper.setProps({ right: 'II' })
+    await wrapper.find('textarea').setValue('Quero a cópia dos exames do primeiro semestre.')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Como você quer receber os dados?')
+    expect(wrapper.text()).toContain('Escolha o formato do acesso para enviar.')
+    expect(wrapper.emitted('registered')).toBeUndefined()
+  })
+
+  it('avisa que o acesso simplificado tem resposta imediata', async () => {
+    const wrapper = render()
+    await wrapper.setProps({ right: 'II' })
+    await wrapper.find('input[value="simplificado"]').setValue(true)
+    await wrapper.setProps({ accessFormat: 'simplificado' })
+    await wrapper.find('textarea').setValue('Quero ver os dados do meu cadastro.')
+
+    expect(wrapper.text()).toContain('Este pedido tem resposta imediata')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.emitted('registered')?.[0]?.[0]).toMatchObject({ immediate: true })
   })
 })

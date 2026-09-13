@@ -41,6 +41,41 @@ describe('requestService', () => {
     expect(daysUntil(receipt.dueAt)).toBe(LEGAL_DEADLINE_DAYS)
   })
 
+  it('dá 24 horas à confirmação e ao acesso simplificado', async () => {
+    const confirmation = await createRequest(
+      { rightNumeral: 'I', description: 'Quero saber se vocês tratam meus dados.', attachments: [] },
+      subject,
+    )
+    const simplified = await createRequest(
+      {
+        rightNumeral: 'II',
+        accessFormat: 'simplificado',
+        description: 'Quero ver os meus dados cadastrais.',
+        attachments: [],
+      },
+      subject,
+    )
+
+    const hours = (receipt: { registeredAt: string; dueAt: string }) =>
+      (new Date(receipt.dueAt).getTime() - new Date(receipt.registeredAt).getTime()) / 3_600_000
+
+    expect(confirmation.immediate).toBe(true)
+    expect(hours(confirmation)).toBe(24)
+    expect(simplified.immediate).toBe(true)
+    expect((await fetchRequest(simplified.id)).accessFormat).toBe('simplificado')
+  })
+
+  it('dá 15 dias ao acesso sem formato, como declaração completa', async () => {
+    const receipt = await createRequest(
+      { rightNumeral: 'II', description: 'Quero cópia dos meus exames.', attachments: [] },
+      subject,
+    )
+
+    expect(receipt.immediate).toBe(false)
+    expect(daysUntil(receipt.dueAt)).toBe(LEGAL_DEADLINE_DAYS)
+    expect((await fetchRequest(receipt.id)).accessFormat).toBe('completo')
+  })
+
   it('coloca a requisição recém-criada na fila da organização', async () => {
     const receipt = await createRequest(
       { rightNumeral: 'II', description: 'Quero cópia dos meus exames.', attachments: [] },

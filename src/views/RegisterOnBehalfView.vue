@@ -7,7 +7,8 @@ import OnBehalfAside from '@/features/requests/components/OnBehalfAside.vue'
 import OnBehalfForm from '@/features/requests/components/OnBehalfForm.vue'
 import OnBehalfReceiptCard from '@/features/requests/components/OnBehalfReceiptCard.vue'
 import { todayInput } from '@/features/requests/utils/onBehalf'
-import type { OnBehalfReceipt } from '@/features/requests/types/request'
+import { isImmediate } from '@/features/requests/utils/responseDeadline'
+import type { AccessFormat, OnBehalfReceipt } from '@/features/requests/types/request'
 
 /**
  * Turno 1 · Tela 13 — Registrar requisição em nome do titular (RF004 / RN018).
@@ -19,6 +20,7 @@ import type { OnBehalfReceipt } from '@/features/requests/types/request'
 const receipt = ref<OnBehalfReceipt | null>(null)
 const rightNumeral = ref('')
 const receivedOn = ref(todayInput())
+const accessFormat = ref<AccessFormat | ''>('')
 const formKey = ref(0)
 
 function onRegistered(registered: OnBehalfReceipt) {
@@ -30,6 +32,7 @@ function onRegistered(registered: OnBehalfReceipt) {
 function restart() {
   receipt.value = null
   rightNumeral.value = ''
+  accessFormat.value = ''
   receivedOn.value = todayInput()
   formKey.value += 1
 }
@@ -63,12 +66,14 @@ function restart() {
           :key="formKey"
           v-model:right="rightNumeral"
           v-model:received-on="receivedOn"
+          v-model:access-format="accessFormat"
           :author="account.name"
           @registered="onRegistered"
         />
         <OnBehalfAside
           :received-on="receivedOn"
           :author="account.name"
+          :immediate="isImmediate(rightNumeral, accessFormat || undefined)"
         />
       </div>
     </div>

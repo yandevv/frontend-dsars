@@ -88,6 +88,9 @@ function build(): readonly ReportRecord[] {
       status,
       daysToAnswer,
       rating,
+      // O histórico não traz confirmações, e os acessos dele foram declarações
+      // completas: todos tinham o prazo de 15 dias.
+      onTime: daysToAnswer === undefined ? undefined : daysToAnswer <= LEGAL_DEADLINE_DAYS,
     })
   }
 

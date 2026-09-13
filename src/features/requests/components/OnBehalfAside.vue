@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import { dueFromReceived, isFutureDay } from '@/features/requests/utils/onBehalf'
-import { daysUntil, formatDate } from '@/shared/utils/date'
+import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
+import { deadlinePhrase, formatDue } from '@/features/requests/utils/responseDeadline'
+import { daysUntil } from '@/shared/utils/date'
 
 /**
  * Coluna de apoio do registro por terceiro.
@@ -11,10 +12,12 @@ import { daysUntil, formatDate } from '@/shared/utils/date'
  * O prazo muda enquanto a data de recebimento muda: é aqui que a encarregada
  * vê, antes de registrar, que uma carta antiga já chega à fila vencida.
  */
-const { receivedOn, author } = defineProps<{
+const { receivedOn, author, immediate } = defineProps<{
   /** Dia do recebimento, no formato do campo de data. */
   receivedOn: string
   author: string
+  /** Resposta em até 24 horas do recebimento, em vez dos 15 dias. */
+  immediate: boolean
 }>()
 
 const valid = computed(() => receivedOn !== '' && !isFutureDay(receivedOn))
@@ -24,18 +27,24 @@ const elapsed = computed(() =>
   valid.value ? -daysUntil(new Date(`${receivedOn}T12:00:00`).toISOString()) : 0,
 )
 
-const overdue = computed(() => valid.value && elapsed.value > LEGAL_DEADLINE_DAYS)
+const dueAt = computed(() => (valid.value ? dueFromReceived(receivedOn, immediate) : ''))
+
+const overdue = computed(() => valid.value && new Date(dueAt.value).getTime() < Date.now())
 
 const title = computed(() =>
   valid.value
-    ? `${LEGAL_DEADLINE_DAYS} dias · até ${formatDate(dueFromReceived(receivedOn))}`
-    : `${LEGAL_DEADLINE_DAYS} dias a contar do recebimento`,
+    ? `${deadlinePhrase(immediate)} · até ${formatDue(dueAt.value, immediate)}`
+    : `${deadlinePhrase(immediate)} a contar do recebimento`,
 )
 
 const text = computed(() => {
   if (!valid.value) return 'Informe uma data de recebimento de hoje ou anterior para calcular o prazo.'
   if (overdue.value) {
-    return `O pedido chegou há ${elapsed.value} dias: este registro já nasce fora do prazo legal e entra na fila marcado como vencido.`
+    const days = elapsed.value === 1 ? '1 dia' : `${elapsed.value} dias`
+    return `O pedido chegou há ${days}: este registro já nasce fora do prazo legal e entra na fila marcado como vencido.`
+  }
+  if (immediate) {
+    return 'Pedido de resposta imediata: são 24 horas contadas do recebimento, e não do registro.'
   }
   if (elapsed.value > 0) {
     const left = LEGAL_DEADLINE_DAYS - elapsed.value

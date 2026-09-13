@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
 
+import AccessFormatPicker from '@/features/requests/components/AccessFormatPicker.vue'
 import AttachmentPicker from '@/features/requests/components/AttachmentPicker.vue'
 import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
@@ -25,9 +26,14 @@ import {
   subjectDocument,
   todayInput,
 } from '@/features/requests/utils/onBehalf'
-import { formatDate } from '@/shared/utils/date'
+import {
+  formatDue,
+  isImmediate,
+  needsAccessFormat,
+} from '@/features/requests/utils/responseDeadline'
 import type { RegisteredSubject } from '@/features/requests/data/subjectRegistry'
 import type {
+  AccessFormat,
   OnBehalfReceipt,
   OnBehalfSubject,
   OriginChannel,
@@ -51,6 +57,15 @@ const emit = defineEmits<{ registered: [OnBehalfReceipt] }>()
 /** Direito e data pertencem à tela: a coluna de apoio calcula o prazo com eles. */
 const rightNumeral = defineModel<string>('right', { required: true })
 const receivedOn = defineModel<string>('receivedOn', { required: true })
+const accessFormat = defineModel<AccessFormat | ''>('accessFormat', { default: '' })
+
+// O formato só existe no acesso aos dados; trocar de direito o apaga.
+watch(rightNumeral, (numeral) => {
+  if (!needsAccessFormat(numeral)) accessFormat.value = ''
+})
+
+/** Resposta em até 24 horas, conforme o direito e o formato escolhidos. */
+const immediate = computed(() => isImmediate(rightNumeral.value, accessFormat.value || undefined))
 
 // ── Titular ──────────────────────────────────────────────────────────────────
 const mode = ref<'cadastro' | 'manual'>('cadastro')
@@ -124,6 +139,7 @@ const description = ref('')
 const attachments = ref<RequestAttachment[]>([])
 
 const rightOk = computed(() => rightNumeral.value !== '')
+const formatOk = computed(() => !needsAccessFormat(rightNumeral.value) || accessFormat.value !== '')
 const descriptionOk = computed(() => description.value.trim().length >= DESCRIPTION_MIN_LENGTH)
 
 // ── Passos e validação ───────────────────────────────────────────────────────
@@ -143,7 +159,7 @@ const sending = computed(() => status.value === 'sending')
 const stepOk = computed<Record<Step, boolean>>(() => ({
   1: subjectOk.value && identityVerified.value,
   2: channel.value !== null && dateOk.value,
-  3: rightOk.value && descriptionOk.value,
+  3: rightOk.value && formatOk.value && descriptionOk.value,
 }))
 
 const isComplete = computed(() => stepOk.value[1] && stepOk.value[2] && stepOk.value[3])
@@ -189,7 +205,7 @@ const dateError = computed(() =>
 
 const dateHint = computed(() =>
   dateOk.value
-    ? `Prazo legal até ${formatDate(dueFromReceived(receivedOn.value))}.`
+    ? `Prazo legal até ${formatDue(dueFromReceived(receivedOn.value, immediate.value), immediate.value)}.`
     : 'O prazo conta desta data.',
 )
 
@@ -206,6 +222,7 @@ const missing = computed(() =>
     channel.value ? null : 'informe o canal de origem',
     dateOk.value ? null : 'informe uma data de recebimento de hoje ou anterior',
     rightOk.value ? null : 'escolha o direito exercido',
+    formatOk.value ? null : 'escolha o formato do acesso',
     descriptionOk.value ? null : 'descreva o pedido',
   ].filter((item): item is string => item !== null),
 )
@@ -290,6 +307,7 @@ async function submit() {
         receivedOn: receivedOn.value,
         reference: reference.value,
         rightNumeral: rightNumeral.value,
+        accessFormat: accessFormat.value || undefined,
         description: description.value,
         attachments: attachments.value,
       },
@@ -657,6 +675,14 @@ function stepClass(n: Step) {
         :invalid="show(3) && !rightOk"
         :disabled="sending"
         description="Um direito por requisição, como no formulário do titular. Se o pedido recebido cobre dois direitos, registre duas requisições e cite a mesma referência de canal."
+      />
+
+      <AccessFormatPicker
+        v-if="needsAccessFormat(rightNumeral)"
+        v-model="accessFormat"
+        legend="Como o titular quer receber os dados?"
+        :invalid="show(3) && !formatOk"
+        :disabled="sending"
       />
 
       <BaseTextarea

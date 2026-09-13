@@ -5,7 +5,7 @@ export const RESPONSE_DEADLINES: readonly ResponseDeadline[] = [
   {
     label: 'Resposta imediata',
     description:
-      'Para confirmar se tratamos algum dado seu e para ver esses dados em formato simplificado.',
+      'Em até 24 horas, para confirmar se tratamos algum dado seu e para ver esses dados em formato simplificado.',
   },
   {
     label: 'Até 15 dias',

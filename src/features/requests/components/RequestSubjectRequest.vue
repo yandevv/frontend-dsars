@@ -39,6 +39,17 @@ const { request, audience = 'encarregado' } = defineProps<{
           </dd>
         </div>
         <div
+          v-if="request.accessFormat"
+          class="flex flex-col gap-1"
+        >
+          <dt class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
+            Formato do acesso
+          </dt>
+          <dd class="text-[15px] text-ink">
+            {{ request.accessFormat === 'simplificado' ? 'Simplificado, resposta imediata' : 'Declaração completa' }}
+          </dd>
+        </div>
+        <div
           v-if="request.origin"
           class="flex flex-col gap-1"
         >

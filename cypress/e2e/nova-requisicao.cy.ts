@@ -42,6 +42,28 @@ describe('Nova requisição', () => {
     cy.contains('conforme o art. 19 da LGPD').should('be.visible')
   })
 
+  it('pede o formato do acesso e dá 24 horas ao simplificado', () => {
+    cy.get('input[type="radio"][value="II"]').check()
+    cy.contains('Escolha o formato para ver o prazo').should('be.visible')
+
+    cy.contains('label', 'Declaração completa').click()
+    cy.contains('15 dias · até').should('be.visible')
+
+    cy.contains('label', 'Formato simplificado').click()
+    cy.get('aside').should('contain.text', 'Em até 24 horas · até')
+
+    cy.get('textarea').type(DESCRIPTION)
+    cy.get('button[type="submit"]').click()
+    cy.contains('Resposta imediata, em até 24 horas do registro').should('be.visible')
+  })
+
+  it('dá 24 horas à confirmação de tratamento', () => {
+    cy.get('input[type="radio"][value="I"]').check()
+
+    cy.get('aside').should('contain.text', 'Em até 24 horas · até')
+    cy.contains('Como você quer receber os dados?').should('not.exist')
+  })
+
   it('recusa o envio incompleto e aponta o que falta', () => {
     cy.get('button[type="submit"]').click()
 
@@ -80,7 +102,7 @@ describe('Nova requisição', () => {
   })
 
   it('permite registrar outro pedido a partir do comprovante', () => {
-    cy.get('input[type="radio"][value="II"]').check()
+    cy.get('input[type="radio"][value="III"]').check()
     cy.get('textarea').type(DESCRIPTION)
     cy.get('button[type="submit"]').click()
 

@@ -1,5 +1,4 @@
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { addDays } from '@/shared/utils/date'
+import { deadlineFrom } from '@/features/requests/utils/responseDeadline'
 
 /**
  * Datas e documentos do registro por terceiro.
@@ -32,9 +31,12 @@ export function receivedAtOf(day: string, now: Date = new Date()): string {
   return new Date(`${day}T12:00:00`).toISOString()
 }
 
-/** O prazo legal, contado do dia em que o pedido chegou e não do registro. */
-export function dueFromReceived(day: string, now: Date = new Date()): string {
-  return addDays(receivedAtOf(day, now), LEGAL_DEADLINE_DAYS)
+/**
+ * O prazo legal, contado do momento em que o pedido chegou e não do registro:
+ * 24 horas quando a resposta é imediata, 15 dias nos demais.
+ */
+export function dueFromReceived(day: string, immediate: boolean, now: Date = new Date()): string {
+  return deadlineFrom(receivedAtOf(day, now), immediate)
 }
 
 /** Só os algarismos do CPF. */

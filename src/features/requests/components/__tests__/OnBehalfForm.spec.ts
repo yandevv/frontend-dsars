@@ -29,6 +29,7 @@ async function fillOrigin(wrapper: ReturnType<typeof render>) {
   await wrapper.find('input[name="canal-origem"][value="telefone"]').setValue(true)
   await wrapper.find('input[type="checkbox"]').setValue(true)
   await wrapper.find('input[type="radio"][value="II"]').setValue(true)
+  await wrapper.find('input[type="radio"][value="completo"]').setValue(true)
   await wrapper.find('textarea').setValue(
     'Titular ligou pedindo cópia dos exames de 2025. Identidade confirmada por CPF e data de nascimento.',
   )

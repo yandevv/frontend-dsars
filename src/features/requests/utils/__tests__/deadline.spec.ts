@@ -56,4 +56,36 @@ describe('situação do prazo', () => {
     // Vence hoje às 23:59; às 8 da manhã ainda resta o dia inteiro, não zero.
     expect(daysLeft(late)).toBe(0)
   })
+
+  describe('prazo de 24 horas', () => {
+    const NOW = new Date('2026-09-26T12:00:00.000Z')
+    const HOUR = 3_600_000
+
+    function immediate(hoursLeft: number, status: RequestStatus = 'em-analise'): DataRequest {
+      return {
+        ...request(0, status),
+        rightNumeral: 'I',
+        dueAt: new Date(NOW.getTime() + hoursLeft * HOUR).toISOString(),
+      }
+    }
+
+    it('fica perto do fim até vencer, e vence no minuto exato', () => {
+      expect(deadlineStatusOf(immediate(23), NOW)).toBe('proxima')
+      expect(deadlineStatusOf(immediate(0.01), NOW)).toBe('proxima')
+      expect(deadlineStatusOf(immediate(-0.01), NOW)).toBe('vencida')
+    })
+
+    it('anuncia o prazo em horas', () => {
+      expect(deadlineLabel(immediate(5.5), NOW)).toBe('Vence em 5 h')
+      expect(deadlineLabel(immediate(0.5), NOW)).toBe('Vence em menos de 1 h')
+      expect(deadlineLabel(immediate(-0.5), NOW)).toBe('Venceu há menos de 1 h')
+      expect(deadlineLabel(immediate(-3), NOW)).toBe('Venceu há 3 h')
+      expect(deadlineLabel(immediate(-30), NOW)).toBe('Venceu há 1 dia')
+      expect(deadlineLabel(immediate(-72), NOW)).toBe('Venceu há 3 dias')
+    })
+
+    it('ordena pela fração de dia que falta', () => {
+      expect(daysLeft(immediate(6), NOW)).toBe(0.25)
+    })
+  })
 })

@@ -15,8 +15,8 @@ import RequestStatusChip from "@/features/requests/components/RequestStatusChip.
 import RequestSubjectCard from "@/features/requests/components/RequestSubjectCard.vue";
 import RequestSubjectRequest from "@/features/requests/components/RequestSubjectRequest.vue";
 import RequestTimeline from "@/features/requests/components/RequestTimeline.vue";
-import { LEGAL_DEADLINE_DAYS } from "@/features/requests/constants/requestPolicy";
 import { deadlineLabel, deadlineStatusOf } from "@/features/requests/utils/deadline";
+import { formatDue, requestIsImmediate } from "@/features/requests/utils/responseDeadline";
 import { DEADLINE_TEXT_CLASSES } from "@/features/requests/constants/deadlineStyles";
 import { findRight } from "@/shared/constants/lgpdRights";
 import { formatDate } from "@/shared/utils/date";
@@ -106,7 +106,7 @@ const overdueNotice = computed<Notice | null>(() => {
 
   return {
     title: "Requisição fora do prazo legal",
-    text: `O prazo de ${LEGAL_DEADLINE_DAYS} dias venceu em ${formatDate(current.dueAt)}. Finalize o atendimento hoje e registre a causa do atraso na nota interna — o relatório à diretoria usa esse campo.`,
+    text: `O prazo legal venceu em ${formatDue(current.dueAt, requestIsImmediate(current))}. Finalize o atendimento hoje e registre a causa do atraso na nota interna — o relatório à diretoria usa esse campo.`,
     tone: "danger",
   };
 });

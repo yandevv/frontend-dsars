@@ -1,6 +1,5 @@
 import { computed, ref } from 'vue'
 
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import { MIN_SURVEY_RESPONSES } from '@/features/reports/constants/reportPolicy'
 import { REQUEST_STATUSES, REQUEST_STATUS_LABELS } from '@/features/requests/constants/requestStatus'
 import { fetchReportRecords } from '@/features/reports/services/reportService'
@@ -124,7 +123,8 @@ export function useManagementReport() {
   )
 
   const onTime = computed(
-    () => answered.value.filter((record) => record.daysToAnswer <= LEGAL_DEADLINE_DAYS).length,
+    // Cada pedido contra o próprio prazo: imediato não é "no prazo" com 10 dias.
+    () => answered.value.filter((record) => record.onTime).length,
   )
 
   const onTimePercent = computed(() =>
@@ -174,7 +174,7 @@ export function useManagementReport() {
       label: 'Concluídas dentro do prazo',
       value: answered.value.length === 0 ? '—' : `${onTimePercent.value}%`,
       unit: '',
-      note: `${onTime.value} de ${answered.value.length} em até ${LEGAL_DEADLINE_DAYS} dias`,
+      note: `${onTime.value} de ${answered.value.length} dentro do prazo de cada pedido`,
       tone:
         onTimePercent.value >= 90
           ? 'text-brand'

@@ -88,6 +88,7 @@ describe('Registrar em nome do titular', () => {
 
     cy.contains('Passo 3 de 3 · Pedido').should('be.visible')
     cy.contains('label', 'Acesso').click()
+    cy.contains('label', 'Declaração completa').click()
     cy.get('textarea').type(DESCRIPTION)
     cy.contains('button', 'Registrar requisição').click()
 

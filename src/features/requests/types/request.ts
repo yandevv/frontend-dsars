@@ -1,3 +1,10 @@
+/**
+ * Como o titular quer receber o acesso aos dados (art. 18, II): o formato
+ * simplificado sai na hora; a declaração completa — origem, critérios e
+ * finalidade — tem até 15 dias.
+ */
+export type AccessFormat = 'simplificado' | 'completo'
+
 /** Estados possíveis de uma requisição, como aparecem na fila e no relatório. */
 export type RequestStatus =
   | 'em-analise'
@@ -112,6 +119,8 @@ export interface DataRequest {
   /** Identificador interno, usado em log e integração. */
   id: string
   rightNumeral: string
+  /** Só no acesso aos dados: é o formato que decide o prazo. */
+  accessFormat?: AccessFormat
   description: string
   status: RequestStatus
   subject: RequestSubject
@@ -170,6 +179,8 @@ export interface RequestOrigin {
 /** O que o formulário do titular envia para abrir uma requisição (RF004). */
 export interface NewRequest {
   rightNumeral: string
+  /** Obrigatório quando o direito é o acesso aos dados. */
+  accessFormat?: AccessFormat
   description: string
   attachments: readonly RequestAttachment[]
 }
@@ -181,6 +192,8 @@ export interface RequestReceipt {
   rightNumeral: string
   registeredAt: string
   dueAt: string
+  /** Resposta em até 24 horas, em vez dos 15 dias. */
+  immediate: boolean
   attachmentCount: number
 }
 

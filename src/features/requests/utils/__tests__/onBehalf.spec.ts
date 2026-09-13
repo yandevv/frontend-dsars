@@ -30,7 +30,7 @@ describe('onBehalf', () => {
   })
 
   it('conta o prazo do recebimento, e não do registro', () => {
-    const due = dueFromReceived('2026-08-28', NOW)
+    const due = dueFromReceived('2026-08-28', false, NOW)
 
     expect(daysUntil(due, new Date(2026, 7, 28))).toBe(LEGAL_DEADLINE_DAYS)
     // Uma carta de 16 dias atrás já chega vencida.

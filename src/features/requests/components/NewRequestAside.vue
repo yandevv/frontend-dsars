@@ -2,10 +2,16 @@
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 
-import { LEGAL_DEADLINE_DAYS } from "@/features/requests/constants/requestPolicy";
-import { addDays, formatDate } from "@/shared/utils/date";
+import {
+  deadlinePhrase,
+  dueAtFor,
+  formatDue,
+  isImmediate,
+  needsAccessFormat,
+} from "@/features/requests/utils/responseDeadline";
 import { useTenant } from "@/features/tenant/composables/useTenant";
 import type { DataSubjectRight } from "@/shared/types/lgpd";
+import type { AccessFormat } from "@/features/requests/types/request";
 
 /**
  * Coluna de apoio do formulário.
@@ -13,14 +19,23 @@ import type { DataSubjectRight } from "@/shared/types/lgpd";
  * O prazo aparece aqui, ao lado da escolha, e não só depois do envio: saber
  * quanto tempo a organização tem para responder é parte de decidir o que pedir.
  */
-const { right } = defineProps<{
+const { right, accessFormat } = defineProps<{
   /** Ausente enquanto nenhum direito foi escolhido. */
   right?: DataSubjectRight;
+  /** Só no acesso aos dados, e só depois de escolhido. */
+  accessFormat?: AccessFormat;
 }>();
 
 const { tenant } = useTenant();
 
-const dueAt = computed(() => addDays(new Date().toISOString(), LEGAL_DEADLINE_DAYS));
+/** O acesso sem formato ainda não tem prazo: depende do que a pessoa escolher. */
+const pending = computed(() => !!right && needsAccessFormat(right.numeral) && !accessFormat);
+
+const immediate = computed(() => !!right && isImmediate(right.numeral, accessFormat));
+
+const dueAt = computed(() =>
+  right ? dueAtFor(new Date().toISOString(), right.numeral, accessFormat) : "",
+);
 
 const steps = [
   "O sistema gera um protocolo e um identificador únicos e começa a contar o prazo.",
@@ -38,15 +53,26 @@ const steps = [
         Prazo desta requisição
       </h2>
       <p class="font-serif text-2xl font-semibold leading-tight text-ink">
-        <template v-if="right">
-          {{ LEGAL_DEADLINE_DAYS }} dias · até {{ formatDate(dueAt) }}
+        <template v-if="pending">
+          Escolha o formato para ver o prazo
+        </template>
+        <template v-else-if="right">
+          {{ deadlinePhrase(immediate) }} · até {{ formatDue(dueAt, immediate) }}
         </template>
         <template v-else>
           Escolha o direito para ver o prazo
         </template>
       </p>
       <p class="text-[15px] leading-relaxed text-ink-body">
-        <template v-if="right">
+        <template v-if="pending">
+          O acesso em formato simplificado tem resposta em até 24 horas; a declaração completa, em
+          até 15 dias.
+        </template>
+        <template v-else-if="immediate">
+          A LGPD pede resposta imediata a este pedido: a organização responde em até 24 horas do
+          registro. Pedidos de complemento não suspendem a contagem.
+        </template>
+        <template v-else-if="right">
           Prazo de resposta para {{ right.requestLabel.toLowerCase() }}, contado do registro,
           conforme o art. 19 da LGPD. Pedidos de complemento não suspendem a contagem.
         </template>

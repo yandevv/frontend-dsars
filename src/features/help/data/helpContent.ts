@@ -50,7 +50,7 @@ const TITULAR_SECTIONS: readonly HelpSection[] = [
   {
     id: 'prazos',
     title: 'Prazos de resposta',
-    intro: `A organização tem prazo para responder, contado a partir do registro do pedido. O portal mostra ${LEGAL_DEADLINE_DAYS} dias corridos e avisa a equipe quando faltam ${DEADLINE_ALERT_DAYS} dias ou menos.`,
+    intro: `A organização tem prazo para responder, contado a partir do registro do pedido. Confirmação de tratamento e acesso em formato simplificado são respondidos em até 24 horas; os demais pedidos têm até ${LEGAL_DEADLINE_DAYS} dias corridos, e a equipe é avisada quando faltam ${DEADLINE_ALERT_DAYS} dias ou menos.`,
     topics: [],
   },
   {

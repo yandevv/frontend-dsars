@@ -27,6 +27,10 @@ function toRecord(request: DataRequest): ReportRecord {
         ? Math.max(0, daysUntil(request.closedAt, new Date(request.registeredAt)))
         : undefined,
     rating: request.survey?.rating,
+    onTime:
+      request.status === 'concluida' && request.closedAt
+        ? request.closedAt <= request.dueAt
+        : undefined,
   }
 }
 

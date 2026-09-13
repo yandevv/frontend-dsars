@@ -13,6 +13,11 @@ export interface ReportRecord {
   status: RequestStatus
   /** Dias corridos do registro à resposta final; ausente enquanto não houve. */
   daysToAnswer?: number
+  /**
+   * Respondida dentro do prazo do próprio pedido — 24 horas ou 15 dias.
+   * Ausente enquanto não houve resposta.
+   */
+  onTime?: boolean
   /** Nota de 1 a 5; ausente quando a pesquisa não foi respondida. */
   rating?: number
 }

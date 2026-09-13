@@ -231,7 +231,8 @@ function exportCsv() {
             Vence em até {{ DEADLINE_ALERT_DAYS }} dias
           </p>
           <p class="text-sm text-ink-muted">
-            Prazo legal de {{ LEGAL_DEADLINE_DAYS }} dias contados do registro (art. 19, LGPD).
+            Prazo legal contado do registro: 24 horas para confirmação e acesso simplificado, até
+            {{ LEGAL_DEADLINE_DAYS }} dias para os demais.
           </p>
         </div>
         <BaseButton

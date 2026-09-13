@@ -218,7 +218,8 @@ function exportReport(format: ExportFormat) {
                 {{ report.lateCount.value }} concluídas fora do prazo legal
               </p>
               <p class="text-sm leading-normal text-ink-soft">
-                O prazo de {{ LEGAL_DEADLINE_DAYS }} dias corre do registro. Requisições canceladas
+                O prazo corre do registro: 24 horas para confirmação e acesso simplificado, até
+                {{ LEGAL_DEADLINE_DAYS }} dias para os demais. Requisições canceladas
                 pelo titular não entram no cálculo de prazo nem no tempo médio.
               </p>
             </div>

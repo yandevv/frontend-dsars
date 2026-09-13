@@ -8,6 +8,7 @@ import { REQUEST_STATUS_LABELS, isOpen } from "@/features/requests/constants/req
 import { deadlineLabel, deadlineStatusOf } from "@/features/requests/utils/deadline";
 import { findRight } from "@/shared/constants/lgpdRights";
 import { formatDate } from "@/shared/utils/date";
+import { formatDue, requestIsImmediate } from "@/features/requests/utils/responseDeadline";
 import type { DataRequest, DeadlineStatus } from "@/features/requests/types/request";
 
 /**
@@ -70,8 +71,8 @@ const rows = computed<Row[]>(() =>
 
 function openDetail(request: DataRequest, situation: DeadlineStatus): string {
   return situation === "vencida"
-    ? `Prazo era ${formatDate(request.dueAt)}`
-    : `Prazo ${formatDate(request.dueAt)}`;
+    ? `Prazo era ${formatDue(request.dueAt, requestIsImmediate(request))}`
+    : `Prazo ${formatDue(request.dueAt, requestIsImmediate(request))}`;
 }
 
 function closedHeadline(request: DataRequest): string {

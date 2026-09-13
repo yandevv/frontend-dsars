@@ -69,6 +69,16 @@ describe('registerOnBehalf', () => {
     expect(daysUntil(receipt.dueAt)).toBe(LEGAL_DEADLINE_DAYS - 3)
   })
 
+  it('conta as 24 horas do recebimento: chegou anteontem, já está vencido', async () => {
+    const receipt = await registerOnBehalf(
+      input({ rightNumeral: 'I', receivedOn: daysAgo(2) }),
+      AUTHOR,
+    )
+
+    expect(receipt.immediate).toBe(true)
+    expect(deadlineStatusOf(await fetchRequest(receipt.id))).toBe('vencida')
+  })
+
   it('deixa uma carta antiga entrar na fila já vencida', async () => {
     const receipt = await registerOnBehalf(input({ receivedOn: daysAgo(20) }), AUTHOR)
 

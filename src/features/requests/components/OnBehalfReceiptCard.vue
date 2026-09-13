@@ -5,6 +5,7 @@ import BaseButton from '@/shared/ui/BaseButton.vue'
 import { findOriginChannel } from '@/features/requests/constants/originChannels'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { downloadText } from '@/shared/utils/download'
+import { formatDue } from '@/features/requests/utils/responseDeadline'
 import { formatDate, formatDateTime } from '@/shared/utils/date'
 import type { OnBehalfReceipt } from '@/features/requests/types/request'
 
@@ -33,7 +34,7 @@ const lines = computed(() => [
       : channel.value.label,
   },
   { label: 'Recebido em', value: formatDate(receipt.origin.receivedAt) },
-  { label: 'Prazo legal', value: `até ${formatDate(receipt.dueAt)}` },
+  { label: 'Prazo legal', value: `até ${formatDue(receipt.dueAt, receipt.immediate)}` },
   {
     label: 'Registrado por',
     value: `${receipt.origin.registeredBy} · encarregada de dados · ${formatDateTime(receipt.registeredAt)}`,
@@ -76,7 +77,7 @@ function download() {
       </h1>
       <p class="text-base leading-relaxed text-ink-body">
         A requisição entrou na fila com você como responsável, marcada como registro por terceiro.
-        O prazo legal vai até {{ formatDate(receipt.dueAt) }}, contado do recebimento em
+        O prazo legal vai até {{ formatDue(receipt.dueAt, receipt.immediate) }}, contado do recebimento em
         {{ formatDate(receipt.origin.receivedAt) }}.
       </p>
     </div>

@@ -2,9 +2,10 @@
 import { computed } from 'vue'
 
 import BaseButton from '@/shared/ui/BaseButton.vue'
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import { findRight } from '@/shared/constants/lgpdRights'
-import { formatDate, formatDateTime } from '@/shared/utils/date'
+import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
+import { formatDue } from '@/features/requests/utils/responseDeadline'
+import { formatDateTime } from '@/shared/utils/date'
 import type { RequestReceipt } from '@/features/requests/types/request'
 
 /**
@@ -62,10 +63,14 @@ const attachmentSummary = computed(() => {
             Prazo de atendimento
           </dt>
           <dd class="font-label text-[26px] font-bold text-ink">
-            {{ formatDate(receipt.dueAt) }}
+            {{ formatDue(receipt.dueAt, receipt.immediate) }}
           </dd>
           <dd class="text-sm text-ink-soft">
-            {{ LEGAL_DEADLINE_DAYS }} dias corridos do registro
+            {{
+              receipt.immediate
+                ? 'Resposta imediata, em até 24 horas do registro'
+                : `${LEGAL_DEADLINE_DAYS} dias corridos do registro`
+            }}
           </dd>
         </div>
       </div>

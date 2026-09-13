@@ -2,15 +2,19 @@ import { DEMO_REQUESTS } from '@/features/requests/data/requests'
 import { DPO_NAME } from '@/features/requests/data/team'
 import {
   CANCEL_REASON_MIN_LENGTH,
-  LEGAL_DEADLINE_DAYS,
   MESSAGE_MAX_LENGTH,
 } from '@/features/requests/constants/requestPolicy'
 import { REQUEST_OUTCOME_LABELS, isOpen } from '@/features/requests/constants/requestStatus'
-import { addDays, formatDate } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/date'
 import { delay } from '@/features/auth/services/fakeNetwork'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { uuidv7 } from '@/shared/utils/uuid'
 import { canEditMessage } from '@/features/requests/utils/messages'
+import {
+  dueAtFor,
+  isImmediate,
+  needsAccessFormat,
+} from '@/features/requests/utils/responseDeadline'
 import { findOriginChannel } from '@/features/requests/constants/originChannels'
 import {
   dueFromReceived,
@@ -21,6 +25,7 @@ import {
 } from '@/features/requests/utils/onBehalf'
 import { TEAM_INBOX, notify, titularInbox } from '@/features/notifications/composables/useNotifications'
 import type {
+  AccessFormat,
   DataRequest,
   MessageActor,
   MessageKind,
@@ -92,9 +97,19 @@ const forTitular = (request: DataRequest) => ({
 })
 const forTeam = (request: DataRequest) => ({ name: 'request-detail', params: { id: request.id } })
 
+/**
+ * O formato só existe no acesso aos dados. Sem ele, vale a declaração completa:
+ * é a resposta mais extensa e a de prazo mais longo, nunca um prazo menor do
+ * que o titular pediu.
+ */
+function formatFor(rightNumeral: string, accessFormat?: AccessFormat): AccessFormat | undefined {
+  if (!needsAccessFormat(rightNumeral)) return undefined
+  return accessFormat ?? 'completo'
+}
+
 /** Registra a requisição e devolve o comprovante que a tela exibe (RF004). */
 export async function createRequest(
-  { rightNumeral, description, attachments }: NewRequest,
+  { rightNumeral, accessFormat, description, attachments }: NewRequest,
   subject: RequestSubject,
 ): Promise<RequestReceipt> {
   await delay()
@@ -102,13 +117,15 @@ export async function createRequest(
   const sequence = nextSequence++
   const protocol = `2026-000${sequence}`
   const registeredAt = new Date().toISOString()
-  const dueAt = addDays(registeredAt, LEGAL_DEADLINE_DAYS)
+  const format = formatFor(rightNumeral, accessFormat)
+  const dueAt = dueAtFor(registeredAt, rightNumeral, format)
   const right = findRight(rightNumeral)
 
   requests.unshift({
     protocol,
     id: uuidv7(),
     rightNumeral,
+    accessFormat: format,
     description: description.trim(),
     status: 'em-analise',
     subject,
@@ -144,6 +161,7 @@ export async function createRequest(
     rightNumeral: right?.numeral ?? rightNumeral,
     registeredAt,
     dueAt,
+    immediate: isImmediate(rightNumeral, format),
     attachmentCount: attachments.length,
   }
 }
@@ -190,7 +208,8 @@ export async function registerOnBehalf(
   const protocol = `2026-000${sequence}`
   const registeredAt = now.toISOString()
   const receivedAt = receivedAtOf(input.receivedOn, now)
-  const dueAt = dueFromReceived(input.receivedOn, now)
+  const format = formatFor(input.rightNumeral, input.accessFormat)
+  const dueAt = dueFromReceived(input.receivedOn, isImmediate(input.rightNumeral, format), now)
   const channel = findOriginChannel(input.channel)
   const reference = input.reference?.trim() || undefined
   const right = findRight(input.rightNumeral)
@@ -200,6 +219,7 @@ export async function registerOnBehalf(
     protocol,
     id: uuidv7(now.getTime()),
     rightNumeral: input.rightNumeral,
+    accessFormat: format,
     description: input.description.trim(),
     status: 'em-analise',
     subject: {
@@ -245,6 +265,7 @@ export async function registerOnBehalf(
     rightNumeral: right?.numeral ?? input.rightNumeral,
     registeredAt,
     dueAt,
+    immediate: isImmediate(input.rightNumeral, format),
     attachmentCount: input.attachments.length,
     subjectName: created.subject.name,
     subjectHasAccount: subject.hasAccount,

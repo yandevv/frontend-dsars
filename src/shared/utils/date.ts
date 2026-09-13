@@ -34,6 +34,11 @@ export function daysFromNow(days: number): string {
   return new Date(Date.now() + days * DAY_MS).toISOString()
 }
 
+/** Mesmo instante, deslocado em horas. */
+export function addHours(iso: string, hours: number): string {
+  return new Date(new Date(iso).getTime() + hours * 3_600_000).toISOString()
+}
+
 /** Mesma data, deslocada em dias corridos. */
 export function addDays(iso: string, days: number): string {
   return new Date(new Date(iso).getTime() + days * DAY_MS).toISOString()
