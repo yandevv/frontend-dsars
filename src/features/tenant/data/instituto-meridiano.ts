@@ -1,17 +1,19 @@
 import type { Tenant } from '@/features/tenant/types/tenant'
 
 /**
- * Tenant de demonstração usado no TCC, com os dados do design
- * `Pagina Inicial Publica.dc.html`.
+ * Identidade do portal: o que a API não guarda — CNPJ, endereço, horário de
+ * atendimento, a forma de tratamento — e o valor inicial enquanto o perfil da
+ * organização não chega. Nome e contato do encarregado vêm da API e
+ * substituem os daqui assim que `GET /public/organizations/:slug` responde.
  *
  * Congelado porque é configuração de leitura: um componente que tentasse
  * alterá-lo estaria cometendo um erro, e é melhor que isso falhe em teste.
  */
 export const institutoMeridiano: Readonly<Tenant> = Object.freeze({
+  slug: import.meta.env.VITE_ORGANIZATION_SLUG ?? 'demonstracao',
   name: 'Instituto Meridiano de Saúde',
   shortName: 'Instituto Meridiano',
   tagline: 'Atendimento a requisições de titulares de dados',
-  article: 'O',
   registrationId: '12.345.678/0001-90',
   address: 'Av. Brasil, 1420 — Franca/SP, 14401-135',
   dpo: Object.freeze({

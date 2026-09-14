@@ -33,24 +33,15 @@ export const MESSAGE_MAX_LENGTH = 2000
 /** Depois deste tempo a mensagem não pode mais ser editada — só excluída. */
 export const MESSAGE_EDIT_WINDOW_MINUTES = 30
 
-export const ANSWER_MIN_LENGTH = 40
-export const ANSWER_MAX_LENGTH = 4000
+/** O parecer conclusivo é uma mensagem: o mesmo limite de texto. */
+export const ANSWER_MIN_LENGTH = 1
+export const ANSWER_MAX_LENGTH = 2000
 
 export const ATTACHMENT_MAX_COUNT = 5
 export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
 export const ATTACHMENT_ACCEPT = '.pdf,.jpg,.jpeg,.png'
 export const ATTACHMENT_RULE = 'PDF, JPG ou PNG · até 10 MB cada · no máximo 5 arquivos'
 
-/** Anexos da resposta seguem outra regra: relatórios e exportações são maiores. */
-export const ANSWER_ATTACHMENT_ACCEPT = '.pdf,.csv,.zip'
-export const ANSWER_ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024
+/** O resultado anexado ao parecer segue a mesma regra dos demais anexos. */
 export const ANSWER_ATTACHMENT_RULE =
-  'Relatórios, comprovantes de eliminação ou arquivos de portabilidade. PDF, CSV ou ZIP de até 20 MB.'
-
-/** Fundamentos que a organização aceita para recusar um pedido. */
-export const REFUSAL_GROUNDS: readonly string[] = [
-  'Guarda obrigatória por norma sanitária (prontuário)',
-  'Obrigação legal ou regulatória do controlador',
-  'Exercício regular de direito em processo',
-  'Dados anonimizados, fora do escopo da LGPD',
-]
+  'Relatório, comprovante de eliminação ou arquivo entregue. PDF, JPG ou PNG de até 10 MB.'

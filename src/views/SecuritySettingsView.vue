@@ -7,13 +7,13 @@ import BaseField from "@/shared/ui/BaseField.vue";
 import PasswordStrengthMeter from "@/features/auth/components/PasswordStrengthMeter.vue";
 import SettingsLayout from "@/features/settings/components/SettingsLayout.vue";
 import {
-  SecurityError,
   changePassword,
   endOtherSessions,
   endSession,
   fetchSecurity,
 } from "@/features/settings/services/securityService";
-import { currentRole, useSession } from "@/features/auth/composables/useSession";
+import { currentRole } from "@/features/auth/composables/useSession";
+import { messageOf } from "@/shared/api/ApiError";
 import { formatDate, relativeMoment } from "@/shared/utils/date";
 import { usePasswordPolicy } from "@/features/auth/composables/usePasswordPolicy";
 import type { AccountSession, SecurityOverview } from "@/features/settings/types/security";
@@ -27,14 +27,21 @@ import type { AccountSession, SecurityOverview } from "@/features/settings/types
  * for reconhecido.
  */
 const role = currentRole();
-const { account } = useSession(role);
 
 const security = ref<SecurityOverview | null>(null);
 const notice = ref("");
+const loadError = ref("");
 
 onMounted(async () => {
-  security.value = await fetchSecurity(account.value.email);
+  try {
+    security.value = await fetchSecurity();
+  } catch (error) {
+    loadError.value = messageOf(error);
+  }
 });
+
+/** Conta criada pelo Google: a primeira senha dispensa a atual. */
+const needsCurrent = computed(() => security.value?.passwordSet ?? true);
 
 const others = computed(() => security.value?.sessions.filter((session) => !session.current) ?? []);
 
@@ -52,13 +59,15 @@ const passwordOpen = ref(false);
 const saving = ref(false);
 const attempted = ref(false);
 const form = ref({ current: "", next: "", repeat: "" });
-const refusal = ref<"senha-incorreta" | "senha-repetida" | null>(null);
+const refusal = ref("");
 
 const policy = usePasswordPolicy(() => form.value.next);
 
 const currentError = computed(() => {
-  if (refusal.value === "senha-incorreta") return "A senha atual não confere.";
-  if (attempted.value && !form.value.current) return "Informe a senha atual para continuar.";
+  if (refusal.value) return refusal.value;
+  if (attempted.value && needsCurrent.value && !form.value.current) {
+    return "Informe a senha atual para continuar.";
+  }
   return undefined;
 });
 
@@ -71,7 +80,7 @@ const repeatError = computed(() =>
 function openPasswordDialog() {
   form.value = { current: "", next: "", repeat: "" };
   attempted.value = false;
-  refusal.value = null;
+  refusal.value = "";
   notice.value = "";
   passwordOpen.value = true;
 }
@@ -79,9 +88,9 @@ function openPasswordDialog() {
 async function savePassword() {
   if (saving.value) return;
   attempted.value = true;
-  refusal.value = null;
+  refusal.value = "";
   if (
-    !form.value.current ||
+    (needsCurrent.value && !form.value.current) ||
     !policy.isValid.value ||
     form.value.repeat !== form.value.next
   ) {
@@ -90,7 +99,7 @@ async function savePassword() {
 
   saving.value = true;
   try {
-    const result = await changePassword(account.value, {
+    const result = await changePassword({
       current: form.value.current,
       next: form.value.next,
     });
@@ -101,10 +110,7 @@ async function savePassword() {
         ? `Senha alterada e ${result.endedSessions} ${result.endedSessions === 1 ? "sessão encerrada" : "sessões encerradas"}. Um aviso foi enviado ao seu e-mail.`
         : "Senha alterada. Um aviso foi enviado ao seu e-mail.";
   } catch (error) {
-    if (!(error instanceof SecurityError)) throw error;
-    if (error.refusal === "senha-incorreta" || error.refusal === "senha-repetida") {
-      refusal.value = error.refusal;
-    }
+    refusal.value = messageOf(error);
   } finally {
     saving.value = false;
   }
@@ -115,14 +121,18 @@ const confirmEndAll = ref(false);
 const endingAll = ref(false);
 
 async function endOne(session: AccountSession) {
-  security.value = await endSession(account.value, session.id);
-  notice.value = `Sessão em ${session.device} encerrada.`;
+  try {
+    security.value = await endSession(session.id);
+    notice.value = `Sessão em ${session.device} encerrada.`;
+  } catch (error) {
+    notice.value = messageOf(error);
+  }
 }
 
 async function endAll() {
   endingAll.value = true;
   try {
-    const result = await endOtherSessions(account.value);
+    const result = await endOtherSessions();
     security.value = result;
     confirmEndAll.value = false;
     notice.value = `${result.endedSessions} ${result.endedSessions === 1 ? "sessão encerrada" : "sessões encerradas"}. Esta sessão continua ativa.`;
@@ -155,7 +165,8 @@ async function endAll() {
       </button>
     </div>
 
-    <p v-if="!security" role="status" class="text-[15px] text-ink-soft">
+    <p v-if="loadError" role="alert" class="text-[15px] text-danger">{{ loadError }}</p>
+    <p v-else-if="!security" role="status" class="text-[15px] text-ink-soft">
       Carregando a segurança da conta…
     </p>
 
@@ -169,7 +180,13 @@ async function endAll() {
             Senha
           </p>
           <h2 id="titulo-senha" class="font-serif text-[21px] font-semibold text-ink">
-            Alterada em {{ formatDate(security.passwordChangedAt) }}
+            {{
+              security.passwordChangedAt
+                ? `Alterada em ${formatDate(security.passwordChangedAt)}`
+                : security.passwordSet
+                  ? "Definida no cadastro"
+                  : "Nenhuma senha definida"
+            }}
           </h2>
           <p class="max-w-[76ch] text-[15px] leading-relaxed text-ink-soft">
             A alteração exige a senha atual e encerra todas as outras sessões — só o dispositivo em
@@ -257,6 +274,7 @@ async function endAll() {
       </p>
       <form class="flex flex-col gap-4" novalidate @submit.prevent="savePassword">
         <BaseField
+          v-if="needsCurrent"
           v-model="form.current"
           label="Senha atual"
           type="password"
@@ -270,8 +288,8 @@ async function endAll() {
           type="password"
           autocomplete="new-password"
           :error="
-            refusal === 'senha-repetida'
-              ? 'A nova senha precisa ser diferente da atual.'
+            !needsCurrent && refusal
+              ? refusal
               : undefined
           "
           :disabled="saving"

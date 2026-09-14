@@ -7,7 +7,8 @@
  */
 const VALID_PASSWORD = 'SenhaSegura!123'
 
-/** E-mail inédito a cada execução: o cadastro recusa endereços repetidos. */
+import { problem } from '../support/fixtures'
+
 function freshEmail() {
   return `titular.${Date.now()}@exemplo.com.br`
 }
@@ -22,6 +23,7 @@ function fillForm(email: string, password = VALID_PASSWORD) {
 
 describe('Registro de conta', () => {
   beforeEach(() => {
+    cy.intercept('POST', '/api/auth/register', { statusCode: 202, body: {} }).as('register')
     cy.visit('/registrar')
   })
 
@@ -66,15 +68,17 @@ describe('Registro de conta', () => {
     cy.contains('As senhas coincidem.').should('be.visible')
   })
 
-  it('recusa um e-mail que já tem conta e oferece as duas saídas (RN004)', () => {
-    fillForm('titular@exemplo.com.br')
+  it('mostra a recusa do servidor sem perder o que foi digitado', () => {
+    cy.intercept(
+      'POST',
+      '/api/auth/register',
+      problem(400, 'A senha não pode conter o seu nome ou e-mail.'),
+    )
+    fillForm('marina@exemplo.com.br')
     cy.get('button[type="submit"]').click()
 
-    cy.contains('Já existe uma conta com este e-mail').should('be.visible')
-    cy.contains('a', 'Entrar com este e-mail').should('have.attr', 'href').and('include', '/entrar')
-    cy.contains('a', 'Esqueci a senha')
-      .should('have.attr', 'href')
-      .and('include', '/recuperar-acesso')
+    cy.contains('A senha não pode conter o seu nome ou e-mail.').should('be.visible')
+    cy.get('input[autocomplete="email"]').should('have.value', 'marina@exemplo.com.br')
   })
 
   it('cria a conta e deixa claro que falta confirmar o e-mail (RN005)', () => {
@@ -82,6 +86,10 @@ describe('Registro de conta', () => {
     fillForm(email)
     cy.get('button[type="submit"]').click()
 
+    // Os dois aceites vão juntos: o servidor responde igual exista ou não a conta (RN004).
+    cy.wait('@register')
+      .its('request.body')
+      .should('deep.include', { email, acceptedTerms: true, acceptedPrivacyNotice: true })
     cy.location('pathname').should('eq', '/confirmar-email')
     cy.get('h1').should('contain.text', 'Confirme seu e-mail para ativar a conta')
     cy.contains(email).should('be.visible')

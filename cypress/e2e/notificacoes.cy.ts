@@ -4,12 +4,17 @@
  * O contador sempre visível, o painel do sino e a página completa: acionar
  * leva ao recurso e marca como lido; limpar pede confirmação.
  */
-const bell = () => cy.get('header button[aria-expanded]').first()
+import { REQUEST_IDS, serveRequests } from '../support/requestServer'
+import { serveInbox } from '../support/servers'
 
+const bell = () => cy.get('header button[aria-expanded]').first()
 
 describe('Notificações', () => {
   beforeEach(() => {
     cy.viewport(1440, 900)
+    cy.signIn('titular')
+    serveRequests('titular')
+    serveInbox()
   })
 
   it('o sino mostra o contador e o painel leva ao recurso, marcando como lido', () => {
@@ -20,7 +25,7 @@ describe('Notificações', () => {
     cy.contains('Notificações · 2 não lidas').should('be.visible')
     cy.contains('button', 'O prazo de resposta da 2026-000418 venceu').click()
 
-    cy.location('pathname').should('eq', '/requisicoes/01a01f0a-da00-7d89-9fae-9ed1e70505ae')
+    cy.location('pathname').should('eq', `/requisicoes/${REQUEST_IDS.eliminacao}`)
     bell().should('contain.text', '1')
   })
 
@@ -42,6 +47,7 @@ describe('Notificações', () => {
     cy.visit('/notificacoes')
 
     cy.get('main').contains('button', 'Marcar todas como lidas').click()
+    cy.wait('@readAll')
     cy.contains('O contador do cabeçalho zerou').should('be.visible')
     bell().should('not.contain.text', '2')
   })
@@ -55,6 +61,7 @@ describe('Notificações', () => {
 
     cy.get('main').contains('button', 'Limpar listagem').click()
     cy.get('[role="dialog"]').contains('button', 'Limpar listagem').click()
+    cy.wait('@clear')
     cy.contains('Sua listagem está vazia').should('be.visible')
   })
 

@@ -1,130 +1,61 @@
-import { normalizeEmail } from '@/features/auth/data/accounts'
-import { currentPasswordOf } from '@/features/settings/services/securityService'
-import { DEMO_PROFILES } from '@/features/settings/data/profiles'
-import { delay } from '@/features/auth/services/fakeNetwork'
-import { formatPhone, isValidPhone } from '@/features/settings/utils/mask'
+import { http } from '@/shared/api/http'
 import { recordConfirmationSent } from '@/features/auth/services/emailConfirmationService'
-import { recordAccountEvent } from '@/features/audit/services/auditService'
-import type { AccountProfile, EditableField } from '@/features/settings/types/profile'
+import type { ApiAccountView, ApiRevealedPersonalData } from '@/shared/api/contracts'
+import type {
+  AccountProfile,
+  EditableField,
+  RevealableField,
+} from '@/features/settings/types/profile'
 
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * ATENÇÃO — aqui entra a API de dados da conta.
+ * Dados da conta (RF016 / RF017).
  *
- * As telas de configuração já conversam com estas funções, inclusive nas
- * recusas. Toda alteração bem-sucedida seria registrada em auditoria pelo
- * servidor, com data, hora e origem; aqui ela só muda a cópia em memória.
- * ─────────────────────────────────────────────────────────────────────────────
+ * Documento e telefone saem do servidor já mascarados; o valor inteiro só vem
+ * por pedido explícito, que o servidor registra na trilha de auditoria. Toda
+ * alteração também é registrada lá, com data, hora e origem.
  */
 
-export type ProfileRefusal =
-  | 'nome-invalido'
-  | 'email-invalido'
-  | 'email-igual'
-  | 'telefone-invalido'
-  | 'senha-incorreta'
-  | 'sem-troca-pendente'
-
-export class ProfileError extends Error {
-  constructor(readonly refusal: ProfileRefusal) {
-    super(refusal)
-    this.name = 'ProfileError'
+export function toProfile(view: ApiAccountView): AccountProfile {
+  return {
+    name: view.fullName,
+    email: view.email,
+    documentMasked: view.document?.masked,
+    documentType: view.document?.type,
+    documentVerified: view.document?.verified ?? false,
+    phoneMasked: view.phone?.masked,
+    pendingEmail: view.pendingEmailChange?.newEmail,
+    passwordSet: view.passwordSet,
   }
 }
 
-const profiles = new Map<string, AccountProfile>(
-  DEMO_PROFILES.map((profile) => [normalizeEmail(profile.email), { ...profile }]),
-)
-
-function profileOf(email: string): AccountProfile {
-  const key = normalizeEmail(email)
-  let profile = profiles.get(key)
-  if (!profile) {
-    // Conta criada nesta sessão: começa só com o que o cadastro pediu.
-    profile = { name: '', email: key, document: '', phone: '' }
-    profiles.set(key, profile)
-  }
-  return profile
-}
-
-export async function fetchProfile(email: string): Promise<AccountProfile> {
-  await delay()
-  return { ...profileOf(email) }
+export async function fetchProfile(): Promise<AccountProfile> {
+  return toProfile(await http.get<ApiAccountView>('/me'))
 }
 
 /** Nome e telefone mudam na hora; o e-mail tem fluxo próprio. */
 export async function updateProfile(
-  email: string,
   field: Exclude<EditableField, 'email'>,
   value: string,
 ): Promise<AccountProfile> {
-  await delay()
-  const profile = profileOf(email)
-
-  if (field === 'name') {
-    const name = value.trim().replace(/\s+/g, ' ')
-    if (name.split(' ').length < 2) throw new ProfileError('nome-invalido')
-    profile.name = name
-  } else {
-    if (!isValidPhone(value)) throw new ProfileError('telefone-invalido')
-    profile.phone = formatPhone(value)
-  }
-
-  recordAccountEvent(
-    { email },
-    {
-      operation: 'alteracao',
-      action: field === 'name' ? 'Nome alterado' : 'Telefone alterado',
-      detail: 'Alteração confirmada nas configurações da conta.',
-    },
-  )
-
-  return { ...profile }
+  const body = field === 'name' ? { fullName: value.trim() } : { phone: value.trim() }
+  return toProfile(await http.patch<ApiAccountView>('/me', body))
 }
 
 /**
  * Pede a troca de e-mail. O novo endereço fica pendente até a confirmação: o
- * atual continua sendo o de acesso e o dos avisos. Pede a senha atual porque
- * quem troca o e-mail passa a controlar a recuperação da conta.
+ * atual continua sendo o de acesso e o dos avisos.
  */
-export async function requestEmailChange(
-  email: string,
-  { newEmail, password }: { newEmail: string; password: string },
-): Promise<AccountProfile> {
-  await delay()
-  const profile = profileOf(email)
-  const next = normalizeEmail(newEmail)
-
-  if (!/.+@.+\..+/.test(next)) throw new ProfileError('email-invalido')
-  if (next === normalizeEmail(profile.email)) throw new ProfileError('email-igual')
-
-  if (password !== currentPasswordOf(email)) throw new ProfileError('senha-incorreta')
-
-  profile.pendingEmail = next
-  recordConfirmationSent(next)
-  recordAccountEvent(
-    { email },
-    {
-      operation: 'alteracao',
-      action: 'Troca de e-mail solicitada',
-      detail: 'Senha atual conferida. O novo endereço fica pendente até a confirmação pelo link.',
-    },
-  )
-  return { ...profile }
+export async function requestEmailChange(newEmail: string): Promise<AccountProfile> {
+  const email = newEmail.trim().toLowerCase()
+  await http.post('/me/email-change', { newEmail: email })
+  recordConfirmationSent(email)
+  return fetchProfile()
 }
 
-export async function cancelEmailChange(email: string): Promise<AccountProfile> {
-  await delay()
-  const profile = profileOf(email)
-  if (!profile.pendingEmail) throw new ProfileError('sem-troca-pendente')
-  delete profile.pendingEmail
-  recordAccountEvent(
-    { email },
-    {
-      operation: 'alteracao',
-      action: 'Troca de e-mail cancelada',
-      detail: 'O endereço atual continua valendo para acesso e avisos.',
-    },
-  )
-  return { ...profile }
+/** O valor sem máscara de um dado de identificação. */
+export async function revealPersonalData(field: RevealableField): Promise<string> {
+  const data = await http.post<ApiRevealedPersonalData>('/me/personal-data/reveal', {
+    fields: [field],
+  })
+  return (field === 'document' ? data.document?.value : data.phone) ?? ''
 }

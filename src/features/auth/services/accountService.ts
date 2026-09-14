@@ -1,57 +1,27 @@
-import { findDemoAccount, normalizeEmail } from '@/features/auth/data/accounts'
-import { delay } from '@/features/auth/services/fakeNetwork'
+import { http } from '@/shared/api/http'
+import type { NewAccount } from '@/features/auth/types/auth'
 import { recordConfirmationSent } from '@/features/auth/services/emailConfirmationService'
-import type { Account, NewAccount } from '@/features/auth/types/auth'
-
-/**
- * ─────────────────────────────────────────────────────────────────────────────
- * ATENÇÃO — este módulo é o lugar onde a API de contas vai entrar.
- *
- * Enquanto o backend não existe, ele responde a partir das contas de
- * demonstração em `data/accounts.ts`. Toda a lógica de tela (erros, envio,
- * sucesso) já conversa com estas funções, então trocar o corpo delas por
- * chamadas HTTP é a única mudança necessária — nenhum componente precisa ser
- * tocado. É o mesmo papel que `useTenant()` cumpre para os dados da
- * organização.
- * ─────────────────────────────────────────────────────────────────────────────
- */
-
-/** Motivos de recusa que a tela sabe explicar. */
-export type AccountFailure = 'email-em-uso'
-
-export class AccountError extends Error {
-  constructor(readonly reason: AccountFailure) {
-    super(reason)
-    this.name = 'AccountError'
-  }
-}
-
-/** Endereços cadastrados nesta sessão, além dos de demonstração. */
-const createdEmails = new Set<string>()
 
 /**
  * Cria a conta do titular (RF002).
  *
- * Recusa endereços já cadastrados, como manda o RN004: um e-mail, uma conta.
- * A conta nasce pendente de confirmação — é o RN005 que a libera.
+ * A resposta é a mesma para endereço novo e para endereço já cadastrado: o
+ * RN004 continua valendo — um e-mail, uma conta —, mas quem descobre isso é o
+ * dono do endereço, pelo e-mail que recebe, e não quem digitou no formulário.
+ * O aceite único da tela cobre os termos de uso e o aviso de privacidade.
  */
-export async function createAccount(input: NewAccount): Promise<Account> {
-  await delay()
+export async function createAccount(input: NewAccount): Promise<string> {
+  const email = input.email.trim().toLowerCase()
 
-  const email = normalizeEmail(input.email)
-  if (findDemoAccount(email) || createdEmails.has(email)) {
-    throw new AccountError('email-em-uso')
-  }
-
-  // O backend persistirá a conta; aqui basta lembrar do endereço para que um
-  // segundo cadastro igual seja recusado enquanto a aba estiver aberta.
-  createdEmails.add(email)
-  recordConfirmationSent(email)
-
-  return {
-    name: input.name.trim(),
+  await http.post('/auth/register', {
+    fullName: input.name.trim(),
     email,
-    role: 'titular',
-    emailConfirmed: false,
-  }
+    password: input.password,
+    passwordConfirmation: input.password,
+    acceptedTerms: true,
+    acceptedPrivacyNotice: true,
+  })
+
+  recordConfirmationSent(email)
+  return email
 }

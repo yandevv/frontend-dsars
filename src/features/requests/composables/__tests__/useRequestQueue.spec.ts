@@ -5,7 +5,30 @@ import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 
 import { useRequestQueue } from '../useRequestQueue'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+vi.mock('@/features/requests/services/requestService', async () => {
+  const { makeRequest, isoFromNow, titularRequests } = await import('@/test/factories')
+  const DAY = 86_400_000
+  // A fila da organização: as cinco do titular de demonstração e mais duas de
+  // outros titulares, uma delas vencida.
+  const queue = [
+    ...titularRequests(),
+    makeRequest({
+      id: 'r403',
+      protocol: '2026-000403',
+      subject: { name: 'Otávio Lins', email: '' },
+      registeredAt: isoFromNow(-16 * DAY),
+      dueAt: isoFromNow(-1 * DAY),
+    }),
+    makeRequest({
+      id: 'r452',
+      protocol: '2026-000452',
+      subject: { name: 'Iara Monteiro', email: '' },
+      registeredAt: isoFromNow(-1 * DAY),
+      dueAt: isoFromNow(14 * DAY),
+    }),
+  ]
+  return { listOrganizationRequests: () => Promise.resolve(queue) }
+})
 
 let router: Router
 
@@ -70,7 +93,7 @@ describe('useRequestQueue', () => {
   it('busca por protocolo e por nome do titular', async () => {
     const queue = await mountQueue()
 
-    queue.search.value = '000431'
+    queue.search.value = '000444'
     expect(queue.sorted.value).toHaveLength(1)
 
     queue.search.value = 'iara'

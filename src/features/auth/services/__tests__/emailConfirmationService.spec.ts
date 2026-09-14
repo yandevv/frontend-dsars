@@ -1,79 +1,89 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 import {
   ConfirmationError,
-  DEMO_CONFIRMATION_TOKENS,
   confirmEmail,
-  isConfirmedInSession,
+  confirmEmailChange,
   lastConfirmationSentAt,
   recordConfirmationSent,
   resendConfirmation,
 } from '../emailConfirmationService'
-import { signIn } from '../sessionService'
 import { createAccount } from '../accountService'
-
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+import { mockApi, problem, route } from '@/test/api'
 
 const FIVE_MINUTES = 5 * 60 * 1000
+const INVALID = 'Este link de confirmação não é mais válido. Solicite o envio de um novo.'
 
 describe('emailConfirmationService', () => {
-  it('o cadastro registra o primeiro envio do link', async () => {
-    await createAccount({ name: 'Ana Souza', email: 'ana.souza@exemplo.com.br', password: 'x' })
+  it('o cadastro envia os dois aceites e registra o primeiro envio do link', async () => {
+    const { calls } = mockApi([route('POST', '/auth/register', { status: 202, body: {} })])
 
+    await createAccount({ name: ' Ana Souza ', email: 'Ana.Souza@exemplo.com.br', password: 'x' })
+
+    expect(calls[0]!.body).toEqual({
+      fullName: 'Ana Souza',
+      email: 'ana.souza@exemplo.com.br',
+      password: 'x',
+      passwordConfirmation: 'x',
+      acceptedTerms: true,
+      acceptedPrivacyNotice: true,
+    })
     expect(lastConfirmationSentAt('Ana.Souza@exemplo.com.br')).toBeDefined()
   })
 
-  it('recusa reenviar antes do intervalo mínimo e diz quando poderá', async () => {
+  it('recusa reenviar antes do intervalo mínimo, sem chamar o servidor', async () => {
+    const { calls } = mockApi([])
     const start = Date.UTC(2026, 8, 25, 10, 0, 0)
     recordConfirmationSent('bia@exemplo.com.br', start)
 
-    const refusal = await resendConfirmation('bia@exemplo.com.br', start + 60_000).catch((e) => e)
+    const refusal = await resendConfirmation('bia@exemplo.com.br', start + 60_000).catch(
+      (error: unknown) => error,
+    )
 
     expect(refusal).toBeInstanceOf(ConfirmationError)
-    expect(refusal.reason).toBe('intervalo')
-    expect(refusal.detail.retryAt).toBe(new Date(start + FIVE_MINUTES).toISOString())
+    expect((refusal as ConfirmationError).reason).toBe('intervalo')
+    expect((refusal as ConfirmationError).detail?.retryAt).toBe(
+      new Date(start + FIVE_MINUTES).toISOString(),
+    )
+    expect(calls).toHaveLength(0)
   })
 
   it('reenvia depois do intervalo e recomeça a contagem', async () => {
+    const { calls } = mockApi([route('POST', '/auth/confirm-email/resend', { status: 202, body: {} })])
     const start = Date.UTC(2026, 8, 25, 11, 0, 0)
     recordConfirmationSent('caio@exemplo.com.br', start)
 
     const { sentAt } = await resendConfirmation('caio@exemplo.com.br', start + FIVE_MINUTES)
 
+    expect(calls[0]!.body).toEqual({ email: 'caio@exemplo.com.br' })
     expect(sentAt).toBe(new Date(start + FIVE_MINUTES).toISOString())
     expect(lastConfirmationSentAt('caio@exemplo.com.br')).toBe(start + FIVE_MINUTES)
   })
 
-  it('responde igual para endereço sem conta', async () => {
-    await expect(resendConfirmation('ninguem@exemplo.com.br')).resolves.toHaveProperty('sentAt')
+  it('confirma o cadastro pelo link', async () => {
+    const { calls } = mockApi([route('POST', '/auth/confirm-email', { message: 'ok' })])
+
+    await expect(confirmEmail('ficha-valida')).resolves.toEqual({ kind: 'cadastro' })
+    expect(calls[0]!.body).toEqual({ token: 'ficha-valida' })
   })
 
-  it('confirma o cadastro e libera o acesso da conta pendente', async () => {
-    await expect(
-      signIn({ email: 'pendente@exemplo.com.br', password: 'SenhaSegura!123' }),
-    ).rejects.toMatchObject({ reason: 'email-nao-confirmado' })
+  it('trata link vencido, usado ou inexistente da mesma forma', async () => {
+    mockApi([route('POST', '/auth/confirm-email', problem(400, INVALID))])
 
-    const result = await confirmEmail(DEMO_CONFIRMATION_TOKENS.cadastro)
-
-    expect(result).toEqual({ kind: 'cadastro', email: 'pendente@exemplo.com.br' })
-    expect(isConfirmedInSession('pendente@exemplo.com.br')).toBe(true)
-    await expect(
-      signIn({ email: 'pendente@exemplo.com.br', password: 'SenhaSegura!123' }),
-    ).resolves.toMatchObject({ emailConfirmed: true })
+    await expect(confirmEmail('ficha-velha')).rejects.toMatchObject({ reason: 'invalido' })
   })
 
-  it('confirma a troca com o endereço novo e o que ele substitui', async () => {
-    await expect(confirmEmail(DEMO_CONFIRMATION_TOKENS.troca)).resolves.toMatchObject({
+  it('confirma a troca de e-mail e devolve o endereço novo', async () => {
+    mockApi([
+      route('POST', '/me/email-change/confirm', {
+        message: 'Endereço de e-mail alterado.',
+        email: 'nova@exemplo.com.br',
+      }),
+    ])
+
+    await expect(confirmEmailChange('ficha')).resolves.toEqual({
       kind: 'troca',
-      previous: 'titular@exemplo.com.br',
+      email: 'nova@exemplo.com.br',
     })
-  })
-
-  it('diferencia o link vencido e trata inexistente e usado da mesma forma', async () => {
-    await expect(confirmEmail(DEMO_CONFIRMATION_TOKENS.expirado)).rejects.toMatchObject({
-      reason: 'expirado',
-      detail: { email: 'pendente@exemplo.com.br' },
-    })
-    await expect(confirmEmail('qualquer-coisa')).rejects.toMatchObject({ reason: 'invalido' })
   })
 })

@@ -8,7 +8,8 @@ import BaseCheckbox from '@/shared/ui/BaseCheckbox.vue'
 import BaseField from '@/shared/ui/BaseField.vue'
 import PasswordStrengthMeter from '@/features/auth/components/PasswordStrengthMeter.vue'
 import { usePasswordPolicy } from '@/features/auth/composables/usePasswordPolicy'
-import { AccountError, createAccount } from '@/features/auth/services/accountService'
+import { createAccount } from '@/features/auth/services/accountService'
+import { messageOf } from '@/shared/api/ApiError'
 
 /**
  * Cadastro do titular (RF002, RN002 a RN005).
@@ -32,8 +33,7 @@ const router = useRouter()
 const status = ref<'idle' | 'sending'>('idle')
 /** Só depois da primeira tentativa os campos passam a mostrar erro. */
 const attempted = ref(false)
-const takenEmail = ref('')
-const unexpectedFailure = ref(false)
+const failure = ref('')
 
 const summary = useTemplateRef<HTMLElement>('summary')
 
@@ -98,8 +98,7 @@ const submitHint = computed(() =>
 
 async function submit() {
   attempted.value = true
-  takenEmail.value = ''
-  unexpectedFailure.value = false
+  failure.value = ''
 
   if (!isComplete.value) {
     await nextTick()
@@ -109,24 +108,22 @@ async function submit() {
 
   status.value = 'sending'
   try {
-    const account = await createAccount({
+    const email = await createAccount({
       name: form.name,
       email: form.email,
       password: form.password,
     })
     // A conta nasce pendente: a tela de confirmação diz para onde o link foi e
-    // cuida do reenvio, com o intervalo mínimo à vista.
+    // cuida do reenvio, com o intervalo mínimo à vista. O servidor responde do
+    // mesmo jeito para endereço novo e já cadastrado (RN004) — quem já tem
+    // conta recebe no e-mail o aviso, e não um segundo cadastro.
     await router.push({
       name: 'email-confirmation',
-      query: { origem: 'cadastro', email: account.email },
+      query: { origem: 'cadastro', email },
     })
   } catch (error) {
     status.value = 'idle'
-    if (error instanceof AccountError && error.reason === 'email-em-uso') {
-      takenEmail.value = form.email.trim()
-    } else {
-      unexpectedFailure.value = true
-    }
+    failure.value = messageOf(error)
   }
 }
 </script>
@@ -157,39 +154,11 @@ async function submit() {
       </BaseAlert>
     </div>
 
-    <!-- RN004: um endereço de e-mail, uma única conta. -->
     <BaseAlert
-      v-if="takenEmail"
-      variant="success"
-      size="md"
-      title="Já existe uma conta com este e-mail"
-    >
-      <p>
-        Cada endereço de e-mail tem uma única conta. Se a conta é sua, entre com ela.
-        Se não lembra a senha, podemos enviar um link para você criar outra.
-      </p>
-      <div class="flex flex-wrap gap-2.5 pt-0.5">
-        <BaseButton
-          :to="{ name: 'login', query: { email: takenEmail } }"
-          size="sm"
-        >
-          Entrar com este e-mail
-        </BaseButton>
-        <BaseButton
-          :to="{ name: 'password-recovery', query: { email: takenEmail } }"
-          variant="secondary"
-          size="sm"
-        >
-          Esqueci a senha
-        </BaseButton>
-      </div>
-    </BaseAlert>
-
-    <BaseAlert
-      v-if="unexpectedFailure"
+      v-if="failure"
       title="Não conseguimos criar a conta agora"
     >
-      <p>Houve uma falha ao falar com o servidor. Tente novamente em alguns instantes.</p>
+      <p>{{ failure }}</p>
     </BaseAlert>
 
     <div class="flex flex-col gap-[18px]">

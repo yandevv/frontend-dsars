@@ -13,7 +13,7 @@ import { InviteError, fetchInvite } from '@/features/auth/services/inviteService
 import { formatDate } from '@/shared/utils/date'
 import { useTenant } from '@/features/tenant/composables/useTenant'
 import type { InviteFailure } from '@/features/auth/services/inviteService'
-import type { Invite } from '@/features/auth/types/invite'
+import type { InvitePreview } from '@/features/auth/types/invite'
 
 /**
  * Cadastro por convite (`Registro de Conta.dc.html`, quadro 1c).
@@ -25,9 +25,9 @@ import type { Invite } from '@/features/auth/types/invite'
 const { tenant } = useTenant()
 const route = useRoute()
 
-const invite = ref<Invite>()
+const invite = ref<InvitePreview>()
 const failure = ref<InviteFailure>()
-const refusedInvite = ref<Invite>()
+const refusedInvite = ref<InvitePreview>()
 const loading = ref(true)
 const accepted = ref(false)
 

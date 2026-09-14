@@ -3,9 +3,9 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 
 import CancelRequestsDialog from "../CancelRequestsDialog.vue";
-import { DEMO_REQUESTS } from "@/features/requests/data/requests";
+import { titularRequests } from "@/test/factories";
 
-const open = DEMO_REQUESTS.filter((request) => request.status === "em-analise").slice(0, 3);
+const open = titularRequests().filter((request) => request.status === "aberta");
 
 async function render(props: { mode: "individual" | "lote"; count?: number; sending?: boolean }) {
   const wrapper = mount(CancelRequestsDialog, {

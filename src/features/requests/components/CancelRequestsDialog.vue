@@ -23,11 +23,14 @@ const {
   requests,
   mode,
   sending = false,
+  error = "",
 } = defineProps<{
   /** O que vai ser cancelado; no modo individual, uma só. */
   requests: readonly DataRequest[];
   mode: "individual" | "lote";
   sending?: boolean;
+  /** A recusa do servidor, mostrada no próprio modal para a pessoa tentar de novo. */
+  error?: string;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -186,6 +189,7 @@ function confirm() {
       </span>
     </label>
 
+    <p v-if="error" role="alert" class="text-[13px] text-danger">{{ error }}</p>
     <template #note> O cancelamento fica na trilha de auditoria com data, hora e motivo. </template>
 
     <template #actions>

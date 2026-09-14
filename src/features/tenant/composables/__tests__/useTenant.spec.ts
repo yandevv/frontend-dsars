@@ -1,21 +1,33 @@
 import { describe, it, expect } from 'vitest'
 
-import { useTenant } from '../useTenant'
+import { applyOrganization, useTenant } from '../useTenant'
 
 describe('useTenant', () => {
-  it('devolve o tenant com os dados de identificação e da encarregada', () => {
+  it('começa com a identidade configurada do portal', () => {
     const { tenant } = useTenant()
 
-    expect(tenant.name).toBe('Instituto Meridiano de Saúde')
+    expect(tenant.slug).toBe('demonstracao')
     expect(tenant.registrationId).toBe('12.345.678/0001-90')
-    expect(tenant.dpo.name).toBe('Helena Prado Vasconcelos')
-    expect(tenant.dpo.email).toBe('dpo@meridianosaude.org.br')
+    expect(tenant.dpo.name).toBeTruthy()
   })
 
-  it('entrega configuração imutável, incluindo os dados aninhados', () => {
+  it('troca nome e contato do encarregado pelo perfil público da organização', () => {
     const { tenant } = useTenant()
 
-    expect(Object.isFrozen(tenant)).toBe(true)
-    expect(Object.isFrozen(tenant.dpo)).toBe(true)
+    applyOrganization({
+      slug: 'demonstracao',
+      name: 'Organização Demonstração',
+      dpo: { name: 'Ana Encarregada', email: 'ana@demonstracao.test', phone: null },
+      rightsGuidance: 'Envie seu pedido pelo portal.',
+    })
+
+    expect(tenant.name).toBe('Organização Demonstração')
+    expect(tenant.shortName).toBe('Organização Demonstração')
+    expect(tenant.dpo.email).toBe('ana@demonstracao.test')
+    expect(tenant.rightsGuidance).toBe('Envie seu pedido pelo portal.')
+    // Sem telefone no perfil, fica o configurado.
+    expect(tenant.dpo.phone).toBeTruthy()
+    // CNPJ e endereço não estão na API: seguem os do portal.
+    expect(tenant.registrationId).toBe('12.345.678/0001-90')
   })
 })

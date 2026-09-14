@@ -87,7 +87,7 @@ function onFiles(event: Event) {
       continue
     }
 
-    model.value = [...model.value, { name: file.name, meta: formatBytes(file.size) }]
+    model.value = [...model.value, { name: file.name, meta: formatBytes(file.size), file }]
   }
 
   // Zerar permite reescolher o mesmo arquivo depois de removê-lo da lista.

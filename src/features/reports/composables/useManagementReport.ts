@@ -1,10 +1,13 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { MIN_SURVEY_RESPONSES } from '@/features/reports/constants/reportPolicy'
 import { REQUEST_STATUSES, REQUEST_STATUS_LABELS } from '@/features/requests/constants/requestStatus'
-import { fetchReportRecords } from '@/features/reports/services/reportService'
-import { findRight } from '@/shared/constants/lgpdRights'
-import type { ReportBar, ReportIndicator, ReportRecord } from '@/features/reports/types/report'
+import { fetchReport, type ReportQuery } from '@/features/reports/services/reportService'
+import { LGPD_RIGHTS, findRight } from '@/shared/constants/lgpdRights'
+import { apiStatusOf, numeralOf, rightOf, statusOf } from '@/shared/api/enums'
+import { messageOf } from '@/shared/api/ApiError'
+import type { ApiRequestReport, LgpdRight } from '@/shared/api/contracts'
+import type { ReportBar, ReportIndicator } from '@/features/reports/types/report'
 import type { RequestStatus } from '@/features/requests/types/request'
 
 export type ReportPeriod =
@@ -16,13 +19,12 @@ export type ReportPeriod =
 
 const STATUS_COLORS: Record<RequestStatus, string> = {
   concluida: 'bg-brand',
-  'em-analise': 'bg-chart-2',
-  'aguardando-complemento': 'bg-due-soon',
+  aberta: 'bg-chart-2',
   cancelada: 'bg-chart-4',
 }
 
 /** Número em português: uma casa decimal, vírgula como separador. */
-function decimal(value: number): string {
+export function decimal(value: number): string {
   return value.toLocaleString('pt-BR', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -44,16 +46,107 @@ const MONTH_NAMES = [
   'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
 ]
 
+/** O primeiro e o último dia de cada período, como a API os recebe. */
+export function periodRange(
+  period: ReportPeriod,
+  custom: { from: string; to: string },
+  now: Date = new Date(),
+): { from: string; to: string } {
+  const today = isoDate(now)
+  switch (period) {
+    case 'ultimos-30':
+      return { from: isoDate(new Date(now.getTime() - 29 * 86_400_000)), to: today }
+    case 'ultimos-90':
+      return { from: isoDate(new Date(now.getTime() - 89 * 86_400_000)), to: today }
+    case 'mes-anterior': {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const last = new Date(now.getFullYear(), now.getMonth(), 0)
+      const pad = (value: number) => String(value).padStart(2, '0')
+      const day = (date: Date) =>
+        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+      return { from: day(first), to: day(last) }
+    }
+    case 'este-ano':
+      return { from: `${now.getFullYear()}-01-01`, to: today }
+    case 'personalizado':
+      return custom
+  }
+}
+
+/** Barras proporcionais à maior, com a participação no conjunto. */
+export function toBars(
+  counts: readonly { label: string; total: number; color: string }[],
+): ReportBar[] {
+  const largest = Math.max(1, ...counts.map((item) => item.total))
+  const total = counts.reduce((sum, item) => sum + item.total, 0) || 1
+
+  return counts
+    .slice()
+    .sort((left, rightSide) => rightSide.total - left.total)
+    .map((item) => ({
+      label: item.label,
+      total: item.total,
+      share: `${Math.round((item.total / total) * 100)}%`,
+      width: `${Math.round((item.total / largest) * 100)}%`,
+      color: item.color,
+    }))
+}
+
+/** Os quatro números grandes, a partir do que o servidor apurou. */
+export function indicatorsOf(report: ApiRequestReport): ReportIndicator[] {
+  const completed = report.totalsByStatus.COMPLETED ?? 0
+  const { closed, closedOnTime, onTimePercentage } = report.deadline
+  const hours = report.averageResolutionHours
+  const { satisfaction } = report
+  const visible = !satisfaction.suppressed && satisfaction.averageRating !== null
+
+  return [
+    {
+      label: 'Requisições no período',
+      value: String(report.total),
+      unit: 'registradas',
+      note: `${completed} já ${completed === 1 ? 'concluída' : 'concluídas'}`,
+      tone: 'text-ink',
+    },
+    {
+      label: 'Tempo médio de atendimento',
+      value: hours === null ? '—' : decimal(hours / 24),
+      unit: hours === null ? '' : 'dias',
+      note: 'Do registro à resposta final',
+      tone: 'text-brand',
+    },
+    {
+      label: 'Concluídas dentro do prazo',
+      value: onTimePercentage === null ? '—' : `${Math.round(onTimePercentage)}%`,
+      unit: '',
+      note: `${closedOnTime} de ${closed} dentro do prazo de cada pedido`,
+      tone:
+        onTimePercentage === null || onTimePercentage >= 90
+          ? 'text-brand'
+          : onTimePercentage >= 75
+            ? 'text-due-soon-ink'
+            : 'text-danger',
+    },
+    {
+      label: 'Satisfação média',
+      value: visible ? decimal(satisfaction.averageRating ?? 0) : '—',
+      unit: visible ? 'de 5' : '',
+      note: `${satisfaction.responses} respostas anônimas`,
+      tone: 'text-brand',
+    },
+  ]
+}
+
 /**
  * Os indicadores de atendimento da organização (RF028).
  *
- * Todos os números são agregados, e nenhum deles identifica titular ou
- * respondente. O corte de anonimato da satisfação está aqui, e não na tela:
- * é regra de apuração, não de exibição.
+ * Todos os números são agregados pelo servidor, e nenhum deles identifica
+ * titular ou respondente. Cada troca de filtro pede uma nova apuração.
  */
 export function useManagementReport() {
-  const records = ref<readonly ReportRecord[]>([])
+  const report = ref<ApiRequestReport | null>(null)
   const loading = ref(true)
+  const error = ref('')
 
   const period = ref<ReportPeriod>('ultimos-90')
   const right = ref('todos')
@@ -76,12 +169,7 @@ export function useManagementReport() {
 
   const rightOptions = computed(() => [
     { value: 'todos', label: 'Todos os direitos' },
-    ...[...new Set(records.value.map((record) => record.rightNumeral))]
-      .sort()
-      .map((numeral) => ({
-        value: numeral,
-        label: findRight(numeral)?.requestLabel ?? numeral,
-      })),
+    ...LGPD_RIGHTS.map((item) => ({ value: item.numeral, label: item.requestLabel })),
   ])
 
   const statusOptions = computed(() => [
@@ -89,176 +177,75 @@ export function useManagementReport() {
     ...REQUEST_STATUSES.map((value) => ({ value, label: REQUEST_STATUS_LABELS[value] })),
   ])
 
-  function withinPeriod(record: ReportRecord): boolean {
-    const day = record.registeredAt.slice(0, 10)
+  /** O recorte da tela, no formato que a API recebe. */
+  const query = computed<ReportQuery>(() => ({
+    ...periodRange(period.value, { from: from.value, to: to.value }),
+    status: status.value === 'todos' ? undefined : [apiStatusOf(status.value as RequestStatus)],
+    right: right.value === 'todos' ? undefined : [rightOf(right.value)],
+  }))
 
-    switch (period.value) {
-      case 'ultimos-30':
-        return day >= isoDate(new Date(Date.now() - 30 * 86_400_000))
-      case 'ultimos-90':
-        return day >= isoDate(new Date(Date.now() - 90 * 86_400_000))
-      case 'mes-anterior':
-        return day.slice(0, 7) === isoDate(previousMonth).slice(0, 7)
-      case 'este-ano':
-        return day.slice(0, 4) === String(new Date().getFullYear())
-      case 'personalizado':
-        return day >= from.value && day <= to.value
-    }
-  }
-
-  const filtered = computed(() =>
-    records.value.filter(
-      (record) =>
-        withinPeriod(record) &&
-        (right.value === 'todos' || record.rightNumeral === right.value) &&
-        (status.value === 'todos' || record.status === status.value),
-    ),
-  )
-
-  const answered = computed(() =>
-    filtered.value.filter(
-      (record): record is ReportRecord & { daysToAnswer: number } =>
-        record.status === 'concluida' && record.daysToAnswer !== undefined,
-    ),
-  )
-
-  const onTime = computed(
-    // Cada pedido contra o próprio prazo: imediato não é "no prazo" com 10 dias.
-    () => answered.value.filter((record) => record.onTime).length,
-  )
-
-  const onTimePercent = computed(() =>
-    answered.value.length === 0
-      ? 0
-      : Math.round((onTime.value / answered.value.length) * 100),
-  )
-
-  const averageDays = computed(() =>
-    answered.value.length === 0
-      ? 0
-      : answered.value.reduce((sum, record) => sum + record.daysToAnswer, 0) /
-        answered.value.length,
-  )
-
-  const ratings = computed(() =>
-    filtered.value
-      .map((record) => record.rating)
-      .filter((rating): rating is number => rating !== undefined),
-  )
-
-  const averageRating = computed(() =>
-    ratings.value.length === 0
-      ? 0
-      : ratings.value.reduce((sum, rating) => sum + rating, 0) / ratings.value.length,
-  )
-
-  /** Abaixo do mínimo, a média e a distribuição saem de cena (anonimato). */
-  const satisfactionVisible = computed(() => ratings.value.length >= MIN_SURVEY_RESPONSES)
-
-  const indicators = computed<ReportIndicator[]>(() => [
-    {
-      label: 'Requisições no período',
-      value: String(filtered.value.length),
-      unit: 'registradas',
-      note: `${answered.value.length} já ${answered.value.length === 1 ? 'concluída' : 'concluídas'}`,
-      tone: 'text-ink',
-    },
-    {
-      label: 'Tempo médio de atendimento',
-      value: answered.value.length === 0 ? '—' : decimal(averageDays.value),
-      unit: answered.value.length === 0 ? '' : 'dias',
-      note: 'Do registro à resposta final',
-      tone: 'text-brand',
-    },
-    {
-      label: 'Concluídas dentro do prazo',
-      value: answered.value.length === 0 ? '—' : `${onTimePercent.value}%`,
-      unit: '',
-      note: `${onTime.value} de ${answered.value.length} dentro do prazo de cada pedido`,
-      tone:
-        onTimePercent.value >= 90
-          ? 'text-brand'
-          : onTimePercent.value >= 75
-            ? 'text-due-soon-ink'
-            : 'text-danger',
-    },
-    {
-      label: 'Satisfação média',
-      value: satisfactionVisible.value ? decimal(averageRating.value) : '—',
-      unit: satisfactionVisible.value ? 'de 5' : '',
-      note: `${ratings.value.length} respostas anônimas`,
-      tone: 'text-brand',
-    },
-  ])
-
-  function toBars(
-    counts: readonly { label: string; total: number; color: string }[],
-  ): ReportBar[] {
-    const largest = Math.max(1, ...counts.map((item) => item.total))
-    const total = counts.reduce((sum, item) => sum + item.total, 0) || 1
-
-    return counts
-      .slice()
-      .sort((left, rightSide) => rightSide.total - left.total)
-      .map((item) => ({
-        label: item.label,
-        total: item.total,
-        share: `${Math.round((item.total / total) * 100)}%`,
-        width: `${Math.round((item.total / largest) * 100)}%`,
-        color: item.color,
-      }))
-  }
+  const indicators = computed(() => (report.value ? indicatorsOf(report.value) : []))
 
   const byRight = computed(() =>
     toBars(
-      [...new Set(records.value.map((record) => record.rightNumeral))].map((numeral) => ({
-        label: findRight(numeral)?.requestLabel ?? numeral,
-        total: filtered.value.filter((record) => record.rightNumeral === numeral).length,
-        color: 'bg-brand',
-      })),
+      Object.entries(report.value?.totalsByRight ?? {}).map(([key, total]) => {
+        const numeral = numeralOf(key as LgpdRight)
+        return {
+          label: findRight(numeral)?.requestLabel ?? numeral,
+          total: total ?? 0,
+          color: 'bg-brand',
+        }
+      }),
     ),
   )
 
   const byStatus = computed(() =>
     toBars(
-      REQUEST_STATUSES.map((value) => ({
-        label: REQUEST_STATUS_LABELS[value],
-        total: filtered.value.filter((record) => record.status === value).length,
-        color: STATUS_COLORS[value],
-      })),
+      Object.entries(report.value?.totalsByStatus ?? {}).map(([key, total]) => {
+        const value = statusOf(key as keyof ApiRequestReport['totalsByStatus'])
+        return { label: REQUEST_STATUS_LABELS[value], total, color: STATUS_COLORS[value] }
+      }),
     ),
   )
 
-  const ratingDistribution = computed(() => {
-    const counts = [5, 4, 3, 2, 1].map(
-      (score) => ratings.value.filter((rating) => rating === score).length,
-    )
-    const largest = Math.max(1, ...counts)
+  const responseCount = computed(() => report.value?.satisfaction.responses ?? 0)
+  const averageRating = computed(() => report.value?.satisfaction.averageRating ?? 0)
+  const satisfactionVisible = computed(
+    () =>
+      !!report.value &&
+      !report.value.satisfaction.suppressed &&
+      responseCount.value >= MIN_SURVEY_RESPONSES,
+  )
 
-    return [5, 4, 3, 2, 1].map((score, index) => {
-      const total = counts[index] ?? 0
+  const ratingDistribution = computed(() => {
+    const distribution = report.value?.satisfaction.distribution
+    const scores = [5, 4, 3, 2, 1] as const
+    const counts = scores.map((score) => distribution?.[String(score) as '1'] ?? 0)
+    const largest = Math.max(1, ...counts)
+    const total = counts.reduce((sum, count) => sum + count, 0)
+
+    return scores.map((score, index) => {
+      const count = counts[index] ?? 0
       return {
         label: score === 1 ? '1 estrela' : `${score} estrelas`,
-        total,
-        share:
-          ratings.value.length === 0
-            ? '0%'
-            : `${Math.round((total / ratings.value.length) * 100)}%`,
-        width: `${Math.round((total / largest) * 100)}%`,
+        total: count,
+        share: total === 0 ? '0%' : `${Math.round((count / total) * 100)}%`,
+        width: `${Math.round((count / largest) * 100)}%`,
         color: score >= 4 ? 'bg-brand' : score === 3 ? 'bg-chart-3' : 'bg-due-soon',
       }
     })
   })
 
-  const responseRate = computed(() =>
-    answered.value.length === 0
-      ? '0%'
-      : `${Math.round((ratings.value.length / answered.value.length) * 100)}%`,
+  const responseRate = computed(() => {
+    const completed = report.value?.totalsByStatus.COMPLETED ?? 0
+    return completed === 0 ? '0%' : `${Math.round((responseCount.value / completed) * 100)}%`
+  })
+
+  const lateCount = computed(() =>
+    report.value ? report.value.deadline.closed - report.value.deadline.closedOnTime : 0,
   )
 
-  const lateCount = computed(() => answered.value.length - onTime.value)
-
-  const empty = computed(() => !loading.value && filtered.value.length === 0)
+  const empty = computed(() => !loading.value && !error.value && report.value?.total === 0)
 
   const summary = computed(() => {
     if (loading.value) return 'Recalculando os indicadores para este recorte…'
@@ -273,7 +260,7 @@ export function useManagementReport() {
         : REQUEST_STATUS_LABELS[status.value as RequestStatus].toLowerCase(),
     ].filter(Boolean)
 
-    const count = filtered.value.length
+    const count = report.value?.total ?? 0
     return `${count} ${count === 1 ? 'requisição' : 'requisições'} · ${parts.join(' · ')}`
   })
 
@@ -283,18 +270,30 @@ export function useManagementReport() {
     status.value = 'todos'
   }
 
+  let latest = 0
   async function load() {
+    const ticket = ++latest
     loading.value = true
-    records.value = await fetchReportRecords()
-    loading.value = false
+    error.value = ''
+    try {
+      const result = await fetchReport(query.value)
+      // Filtros trocados enquanto a apuração corria: só a última resposta vale.
+      if (ticket === latest) report.value = result
+    } catch (failure) {
+      if (ticket === latest) error.value = messageOf(failure)
+    } finally {
+      if (ticket === latest) loading.value = false
+    }
   }
 
+  watch(query, () => void load(), { deep: true })
   void load()
 
   return {
     loading,
-    records,
-    filtered,
+    error,
+    report,
+    query,
     period,
     right,
     status,
@@ -307,7 +306,7 @@ export function useManagementReport() {
     byRight,
     byStatus,
     lateCount,
-    ratings,
+    responseCount,
     ratingDistribution,
     averageRating,
     satisfactionVisible,

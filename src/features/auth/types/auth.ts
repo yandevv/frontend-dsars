@@ -24,6 +24,8 @@ export interface PasswordStrength {
 export interface Credentials {
   email: string
   password: string
+  /** "Manter-me conectado": a sessão dura dias em vez de expirar por inatividade. */
+  rememberMe?: boolean
 }
 
 /** Dados que o cadastro envia para criar uma conta de titular. */
@@ -36,11 +38,15 @@ export interface NewAccount {
 /** Perfil da conta — decide para onde o login leva (RF003). */
 export type AccountRole = 'titular' | 'encarregado'
 
-/** Conta autenticada, como a API devolverá depois. */
+/** Conta autenticada, como a API a devolve. */
 export interface Account {
+  id: string
   name: string
   email: string
   role: AccountRole
   /** Falso enquanto o link do RN005 não for aberto. */
   emailConfirmed: boolean
+  /** A organização a que o encarregado está vinculado; ausente no titular. */
+  organizationId?: string
+  organizationName?: string
 }

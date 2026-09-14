@@ -12,7 +12,6 @@ defineProps<{ invites: readonly Invite[]; busyToken?: string }>()
 
 defineEmits<{
   copy: [invite: Invite]
-  revoke: [invite: Invite]
   resend: [invite: Invite]
 }>()
 
@@ -42,7 +41,7 @@ function validity(invite: Invite): string {
   <ul class="flex flex-col border border-line">
     <li
       v-for="invite in invites"
-      :key="invite.token"
+      :key="`${invite.email}-${invite.issuedAt}`"
       class="grid gap-3 border-b border-line-soft px-4 py-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-center md:gap-5 sm:px-5"
     >
       <div class="flex min-w-0 flex-col gap-1">
@@ -66,29 +65,22 @@ function validity(invite: Invite): string {
       <div class="flex flex-wrap items-center gap-4 md:justify-end">
         <template v-if="inviteStatus(invite) === 'pendente'">
           <button
+            v-if="invite.token"
             type="button"
             class="py-1 text-sm font-medium text-brand underline hover:text-brand-strong"
             @click="$emit('copy', invite)"
           >
             Copiar link<span class="sr-only"> do convite para {{ invite.email }}</span>
           </button>
-          <button
-            type="button"
-            class="py-1 text-sm font-medium text-danger underline hover:text-danger-strong"
-            :disabled="busyToken === invite.token"
-            @click="$emit('revoke', invite)"
-          >
-            Revogar<span class="sr-only"> o convite para {{ invite.email }}</span>
-          </button>
         </template>
         <button
           v-else
           type="button"
           class="py-1 text-sm font-medium text-brand underline hover:text-brand-strong disabled:opacity-55"
-          :disabled="busyToken === invite.token"
+          :disabled="busyToken === invite.email"
           @click="$emit('resend', invite)"
         >
-          {{ busyToken === invite.token ? 'Reenviando…' : 'Reenviar' }}<span class="sr-only">
+          {{ busyToken === invite.email ? 'Reenviando…' : 'Reenviar' }}<span class="sr-only">
             o convite para {{ invite.email }}</span>
         </button>
       </div>

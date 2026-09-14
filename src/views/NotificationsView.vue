@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import AppShell from "@/shared/layout/AppShell.vue";
 import BaseButton from "@/shared/ui/BaseButton.vue";
 import BaseDialog from "@/shared/ui/BaseDialog.vue";
-import { currentRole, useSession } from "@/features/auth/composables/useSession";
+import { currentRole } from "@/features/auth/composables/useSession";
+import { messageOf } from "@/shared/api/ApiError";
 import { momentGroup, relativeMoment } from "@/shared/utils/date";
 import { useNotifications } from "@/features/notifications/composables/useNotifications";
 import type {
@@ -23,10 +24,28 @@ import type {
 const route = useRoute();
 const router = useRouter();
 const role = currentRole();
-const { account } = useSession(role);
-const { notifications, unreadCount, markAsRead, markAllAsRead, clear } = useNotifications(
-  account.value,
-);
+const {
+  notifications,
+  unreadCount,
+  hasMore,
+  loading,
+  loaded,
+  load,
+  loadMore,
+  markAsRead,
+  markAllAsRead,
+  clear,
+  open: openTarget,
+} = useNotifications();
+
+const loadError = ref("");
+onMounted(async () => {
+  try {
+    await load();
+  } catch (error) {
+    loadError.value = messageOf(error);
+  }
+});
 
 type Tab = "todas" | "nao-lidas" | "lidas";
 const tab = ref<Tab>("todas");
@@ -39,7 +58,7 @@ const message = ref("");
 const confirmClear = ref(false);
 const cleared = ref(false);
 
-const readCount = computed(() => notifications.value.length - unreadCount.value);
+const readCount = computed(() => notifications.value.filter((item) => !item.unread).length);
 
 const tabs = computed(() => [
   { value: "todas" as const, label: "Todas", count: notifications.value.length },
@@ -108,27 +127,40 @@ const TONE_STRIPE: Record<NotificationTone, string> = {
   neutro: "border-l-brand",
 };
 
-function open(item: AppNotification) {
-  markAsRead(item.id);
-  if (item.target) {
-    void router.push(item.target);
-    return;
+async function open(item: AppNotification) {
+  try {
+    const destination = await openTarget(item, role);
+    if (destination.kind === "rota") {
+      await router.push(destination.to);
+      return;
+    }
+    unavailable.value = item.id;
+  } catch (error) {
+    message.value = messageOf(error);
   }
-  unavailable.value = item.id;
 }
 
-function markAll() {
-  markAllAsRead();
-  message.value =
-    "Todas as notificações foram marcadas como lidas. O contador do cabeçalho zerou.";
+async function markAll() {
+  try {
+    await markAllAsRead();
+    message.value =
+      "Todas as notificações foram marcadas como lidas. O contador do cabeçalho zerou.";
+  } catch (error) {
+    message.value = messageOf(error);
+  }
 }
 
-function confirmClearing() {
-  clear();
-  cleared.value = true;
-  confirmClear.value = false;
-  tab.value = "todas";
-  message.value = "Listagem limpa. A ação ficou registrada no histórico desta conta.";
+async function confirmClearing() {
+  try {
+    await clear();
+    cleared.value = true;
+    tab.value = "todas";
+    message.value = "Listagem limpa. A ação ficou registrada no histórico desta conta.";
+  } catch (error) {
+    message.value = messageOf(error);
+  } finally {
+    confirmClear.value = false;
+  }
 }
 </script>
 
@@ -207,8 +239,14 @@ function confirmClearing() {
         </button>
       </div>
 
+      <p v-if="loadError" role="alert" class="text-[15px] text-danger">{{ loadError }}</p>
+
+      <p v-else-if="!loaded" role="status" class="text-[15px] text-ink-soft">
+        Carregando suas notificações…
+      </p>
+
       <section
-        v-if="groups.length === 0"
+        v-else-if="groups.length === 0"
         class="flex flex-col items-center gap-3 border border-line bg-surface-subtle px-6 py-14 text-center"
       >
         <h2 class="font-serif text-[22px] font-semibold text-ink">{{ empty.title }}</h2>
@@ -255,7 +293,7 @@ function confirmClearing() {
                     {{ item.type }}
                   </span>
                   <span
-                    v-if="!item.target"
+                    v-if="!item.hasTarget"
                     class="bg-ink-faint px-[7px] py-[3px] font-label text-[11px] font-semibold uppercase tracking-[0.06em] text-white"
                   >
                     Recurso indisponível
@@ -292,7 +330,7 @@ function confirmClearing() {
                   variant="secondary"
                   size="sm"
                   class="whitespace-nowrap"
-                  @click="markAsRead(item.id)"
+                  @click="markAsRead(item.id).catch(() => {})"
                 >
                   Marcar como lida
                 </BaseButton>
@@ -301,6 +339,12 @@ function confirmClearing() {
             </li>
           </ul>
         </section>
+
+        <div v-if="hasMore" class="flex justify-center">
+          <BaseButton variant="secondary" :busy="loading" @click="loadMore">
+            {{ loading ? "Carregando…" : "Carregar mais notificações" }}
+          </BaseButton>
+        </div>
       </div>
     </div>
 

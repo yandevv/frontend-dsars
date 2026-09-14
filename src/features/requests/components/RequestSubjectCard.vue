@@ -3,7 +3,6 @@ import { RouterLink } from 'vue-router'
 
 import BasePanel from '@/shared/ui/BasePanel.vue'
 import { findRight } from '@/shared/constants/lgpdRights'
-import { formatDate } from '@/shared/utils/date'
 import { REQUEST_STATUS_LABELS } from '@/features/requests/constants/requestStatus'
 import type { DataRequest, RequestSubject } from '@/features/requests/types/request'
 
@@ -16,7 +15,7 @@ defineProps<{
 </script>
 
 <template>
-  <BasePanel eyebrow="Titular e verificação">
+  <BasePanel eyebrow="Titular">
     <div class="flex flex-col gap-3.5 px-5 pb-5 pt-[18px]">
       <div class="flex flex-col gap-1">
         <p class="text-base font-semibold text-ink">
@@ -25,26 +24,14 @@ defineProps<{
         <p class="break-words text-sm text-ink-muted">
           {{ subject.email }}
         </p>
-        <p
-          v-if="subject.document"
-          class="text-sm text-ink-muted"
-        >
-          {{ subject.document }}
-          <template v-if="subject.customerSince">
-            · cadastro desde {{ subject.customerSince }}
-          </template>
-        </p>
       </div>
 
-      <div
-        v-if="subject.verifiedAt"
-        class="flex flex-col gap-1 border border-brand-line bg-brand-wash px-3.5 py-3"
-      >
+      <div class="flex flex-col gap-1 border border-brand-line bg-brand-wash px-3.5 py-3">
         <p class="text-sm font-semibold text-brand">
-          Identidade verificada
+          Conta com e-mail confirmado
         </p>
         <p class="text-[13px] leading-normal text-ink-body">
-          E-mail confirmado e documento conferido em {{ formatDate(subject.verifiedAt) }}.
+          Só contas ativas e com o e-mail confirmado registram requisições.
         </p>
       </div>
 

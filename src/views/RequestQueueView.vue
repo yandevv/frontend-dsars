@@ -105,8 +105,7 @@ function exportCsv() {
             Fila de atendimento
           </h1>
           <p class="text-[15px] text-ink-soft">
-            Requisições dirigidas {{ tenant.article.toLowerCase() === 'o' ? 'ao' : 'à' }}
-            {{ tenant.name }} · escopo da organização controladora
+            {{ tenant.name }} · requisições da organização controladora
           </p>
         </div>
         <div class="flex flex-col items-start gap-4 lg:items-end">
@@ -182,6 +181,14 @@ function exportCsv() {
       </div>
 
       <QueueSkeleton v-if="queue.loading.value" />
+
+      <p
+        v-else-if="queue.error.value"
+        role="alert"
+        class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body"
+      >
+        {{ queue.error.value }}
+      </p>
 
       <div
         v-else-if="empty"

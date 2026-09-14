@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import AppShell from '@/shared/layout/AppShell.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
@@ -10,11 +10,10 @@ import ReportIndicators from '@/features/reports/components/ReportIndicators.vue
 import ReportSatisfaction from '@/features/reports/components/ReportSatisfaction.vue'
 import ReportSkeleton from '@/features/reports/components/ReportSkeleton.vue'
 import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { downloadText } from '@/shared/utils/download'
-import { recordAccountEvent } from '@/features/audit/services/auditService'
-import { useSession } from '@/features/auth/composables/useSession'
+import { downloadBlob } from '@/shared/utils/download'
+import { exportReport as exportFromApi } from '@/features/reports/services/reportService'
 import { formatDateTime } from '@/shared/utils/date'
-import { indicatorsToCsv, recordsToCsv } from '@/features/reports/utils/csv'
+import { messageOf } from '@/shared/api/ApiError'
 import { useManagementReport } from '@/features/reports/composables/useManagementReport'
 import { useTenant } from '@/features/tenant/composables/useTenant'
 import type { ExportFormat } from '@/features/reports/types/report'
@@ -30,7 +29,9 @@ import type { ExportFormat } from '@/features/reports/types/report'
 const { tenant } = useTenant()
 const report = useManagementReport()
 
-const apuratedAt = formatDateTime(new Date().toISOString())
+const apuratedAt = computed(() =>
+  formatDateTime(report.report.value?.generatedAt ?? new Date().toISOString()),
+)
 
 const decimalAverage = computed(() =>
   report.averageRating.value.toLocaleString('pt-BR', {
@@ -50,39 +51,17 @@ const scope = computed(() => {
     .join(' · ')
 })
 
-const { account } = useSession('encarregado')
+const exportError = ref('')
 
-const FORMAT_LABELS: Record<ExportFormat, string> = {
-  pdf: 'Indicadores em PDF',
-  csv: 'Indicadores em CSV',
-  base: 'Base analítica anonimizada em CSV',
-}
-
-function exportReport(format: ExportFormat) {
-  // A exportação entra na trilha com quem exportou e o período consultado.
-  recordAccountEvent(account.value, {
-    operation: 'exportacao',
-    action: 'Relatório gerencial exportado',
-    detail: `${FORMAT_LABELS[format]} · ${scope.value}.`,
-    resource: { kind: 'relatorio', label: 'Relatório gerencial' },
-  })
-
-  if (format === 'pdf') {
-    // O navegador já sabe transformar esta página em PDF, e o resultado sai com
-    // o mesmo recorte que está na tela.
-    window.print()
-    return
+/** O arquivo sai do servidor, que registra a exportação na trilha de auditoria. */
+async function exportReport(format: ExportFormat) {
+  exportError.value = ''
+  try {
+    const file = await exportFromApi(report.query.value, format)
+    downloadBlob(file.fileName, file.blob)
+  } catch (error) {
+    exportError.value = messageOf(error)
   }
-
-  if (format === 'csv') {
-    downloadText(
-      'relatorio-gerencial.csv',
-      indicatorsToCsv(report.indicators.value, scope.value),
-    )
-    return
-  }
-
-  downloadText('base-analitica-anonimizada.csv', recordsToCsv(report.filtered.value))
 }
 </script>
 
@@ -95,8 +74,8 @@ function exportReport(format: ExportFormat) {
             Relatório gerencial
           </h1>
           <p class="text-[15px] leading-relaxed text-ink-soft">
-            Atendimento de requisições de titulares {{ tenant.article.toLowerCase() === 'o' ? 'no' : 'na' }}
-            {{ tenant.name }}. Todos os números são agregados; nenhum indicador desta tela
+            Atendimento de requisições de titulares · {{ tenant.name }}. Todos os números são
+            agregados; nenhum indicador desta tela
             identifica titular ou respondente.
           </p>
         </div>
@@ -178,7 +157,23 @@ function exportReport(format: ExportFormat) {
         </p>
       </div>
 
+      <p
+        v-if="exportError"
+        role="alert"
+        class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body"
+      >
+        {{ exportError }}
+      </p>
+
       <ReportSkeleton v-if="report.loading.value" />
+
+      <p
+        v-else-if="report.error.value"
+        role="alert"
+        class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body"
+      >
+        {{ report.error.value }}
+      </p>
 
       <div
         v-else-if="report.empty.value"
@@ -189,8 +184,7 @@ function exportReport(format: ExportFormat) {
         </p>
         <p class="max-w-[58ch] text-[15px] leading-relaxed text-ink-soft">
           Não há registros que combinem período, direito e estado. Amplie o período ou volte o
-          direito para “Todos os direitos” — a base tem {{ report.records.value.length }}
-          requisições registradas.
+          direito para “Todos os direitos”.
         </p>
         <BaseButton
           size="sm"
@@ -228,7 +222,7 @@ function exportReport(format: ExportFormat) {
 
         <ReportSatisfaction
           :visible="report.satisfactionVisible.value"
-          :response-count="report.ratings.value.length"
+          :response-count="report.responseCount.value"
           :average="decimalAverage"
           :response-rate="report.responseRate.value"
           :distribution="report.ratingDistribution.value"

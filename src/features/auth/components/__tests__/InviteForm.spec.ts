@@ -1,36 +1,45 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 
 import InviteForm from '../InviteForm.vue'
-import { InviteError } from '@/features/auth/services/inviteService'
-import type { Account } from '@/features/auth/types/auth'
-import type { Invite, InviteAcceptance } from '@/features/auth/types/invite'
+import { ApiError } from '@/shared/api/ApiError'
+import { endSession, startSession } from '@/features/auth/composables/useSession'
+import type { InvitePreview } from '@/features/auth/types/invite'
 
-const acceptInvite = vi.hoisted(() => vi.fn<(input: InviteAcceptance) => Promise<Account>>())
+const acceptInvite = vi.hoisted(() => vi.fn<(token: string) => Promise<unknown>>())
+const reloadSession = vi.hoisted(() => vi.fn<() => Promise<null>>(() => Promise.resolve(null)))
+const push = vi.hoisted(() => vi.fn<() => Promise<void>>(() => Promise.resolve()))
 
 vi.mock('@/features/auth/services/inviteService', async (importOriginal) => ({
-  // `InviteError` real: o componente decide o que mostrar com `instanceof`.
   ...(await importOriginal<typeof import('@/features/auth/services/inviteService')>()),
   acceptInvite,
 }))
 
-const VALID_PASSWORD = 'SenhaSegura!123'
+vi.mock('@/features/auth/composables/useSession', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth/composables/useSession')>()),
+  reloadSession,
+}))
 
-const INVITE: Invite = {
+vi.mock('vue-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('vue-router')>()),
+  useRouter: () => ({ push }),
+}))
+
+const INVITE: InvitePreview = {
   token: 'convite-valido',
   email: 'bruno.carvalho@meridianosaude.org.br',
-  role: 'encarregado',
-  invitedBy: 'Rogério Alencar Bueno',
-  invitedByRole: 'Diretoria de Governança',
-  issuedAt: '2026-09-12T12:00:00.000Z',
-  expiresAt: '2026-09-19T12:00:00.000Z',
+  organizationName: 'Instituto Meridiano de Saúde',
+  expiresAt: '2026-10-03T12:00:00.000Z',
 }
 
-const ACCOUNT: Account = {
-  name: 'Bruno Carvalho de Souza',
-  email: INVITE.email,
-  role: 'encarregado',
-  emailConfirmed: true,
+function signInAs(email: string) {
+  startSession({
+    id: 'conta-bruno',
+    name: 'Bruno Carvalho de Souza',
+    email,
+    role: 'titular',
+    emailConfirmed: true,
+  })
 }
 
 function render() {
@@ -40,94 +49,67 @@ function render() {
   })
 }
 
-async function fill(wrapper: VueWrapper, { terms = true } = {}) {
-  await wrapper.get('input[autocomplete="name"]').setValue('Bruno Carvalho de Souza')
-
-  const passwords = wrapper.findAll('input[type="password"]')
-  await passwords[0]!.setValue(VALID_PASSWORD)
-  await passwords[1]!.setValue(VALID_PASSWORD)
-
-  if (terms) await wrapper.get('input[type="checkbox"]').setValue(true)
-}
-
-async function submit(wrapper: VueWrapper) {
-  await wrapper.get('form').trigger('submit')
-  await flushPromises()
+function button(wrapper: ReturnType<typeof render>, label: string) {
+  return wrapper.findAll('button').find((item) => item.text().startsWith(label))
 }
 
 describe('InviteForm', () => {
   beforeEach(() => {
     acceptInvite.mockReset()
-    acceptInvite.mockResolvedValue(ACCOUNT)
+    push.mockClear()
   })
 
-  it('mostra o e-mail do convite travado, com a explicação do porquê', () => {
+  afterEach(() => endSession())
+
+  it('sem sessão, leva ao acesso e volta a este convite', () => {
+    endSession()
     const wrapper = render()
-    const email = wrapper.get('input[type="email"]')
 
-    expect((email.element as HTMLInputElement).value).toBe(INVITE.email)
-    expect(email.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('não pode ser alterado')
-  })
+    const login = wrapper
+      .findAllComponents(RouterLinkStub)
+      .find((link) => (link.props('to') as { name?: string }).name === 'login')!
 
-  it('não chama o serviço enquanto faltar campo', async () => {
-    const wrapper = render()
-    await submit(wrapper)
-
-    expect(acceptInvite).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Ainda não é possível criar a conta')
-  })
-
-  it('exige o aceite dos termos', async () => {
-    const wrapper = render()
-    await fill(wrapper, { terms: false })
-    await submit(wrapper)
-
-    expect(acceptInvite).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('O aceite é obrigatório para criar a conta.')
-  })
-
-  it('envia o token do convite, nunca um e-mail digitado', async () => {
-    const wrapper = render()
-    await fill(wrapper)
-    await submit(wrapper)
-
-    expect(acceptInvite).toHaveBeenCalledWith({
-      token: INVITE.token,
-      name: 'Bruno Carvalho de Souza',
-      password: VALID_PASSWORD,
+    expect(wrapper.text()).toContain('Entre com a conta deste endereço')
+    expect(login.props('to')).toEqual({
+      name: 'login',
+      query: { redirect: '/convites/convite-valido', email: INVITE.email },
     })
+    expect(acceptInvite).not.toHaveBeenCalled()
   })
 
-  it('confirma a conta criada e avisa que o e-mail dispensa confirmação', async () => {
+  it('avisa quando a sessão é de outro endereço, antes de o servidor recusar', () => {
+    signInAs('outra@exemplo.com.br')
     const wrapper = render()
-    await fill(wrapper)
-    await submit(wrapper)
 
-    expect(wrapper.text()).toContain('Conta criada e vínculo aceito')
-    expect(wrapper.text()).toContain('não precisa de confirmação')
+    expect(wrapper.text()).toContain('Você entrou com outra conta')
+    expect(button(wrapper, 'Aceitar convite')).toBeUndefined()
+  })
+
+  it('aceita com a conta convidada e relê o perfil', async () => {
+    signInAs(INVITE.email)
+    acceptInvite.mockResolvedValue({ organizationId: 'org-1' })
+    const wrapper = render()
+
+    await button(wrapper, 'Aceitar convite')!.trigger('click')
+    await flushPromises()
+
+    expect(acceptInvite).toHaveBeenCalledWith('convite-valido')
+    expect(reloadSession).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Vínculo aceito')
     expect(wrapper.emitted('accepted')).toHaveLength(1)
   })
 
-  it('explica o convite consumido enquanto a página estava aberta', async () => {
-    acceptInvite.mockRejectedValue(new InviteError('utilizado', INVITE))
-
+  it('mostra a recusa do servidor', async () => {
+    signInAs(INVITE.email)
+    acceptInvite.mockRejectedValue(
+      new ApiError(404, { detail: 'Este convite não está mais disponível. Peça um novo à organização.' }),
+    )
     const wrapper = render()
-    await fill(wrapper)
-    await submit(wrapper)
 
-    expect(wrapper.text()).toContain('Este convite já foi usado')
-    expect(wrapper.find('form').exists()).toBe(true)
-  })
+    await button(wrapper, 'Aceitar convite')!.trigger('click')
+    await flushPromises()
 
-  it('não confunde falha de rede com convite gasto', async () => {
-    acceptInvite.mockRejectedValue(new Error('sem rede'))
-
-    const wrapper = render()
-    await fill(wrapper)
-    await submit(wrapper)
-
-    expect(wrapper.text()).toContain('Não conseguimos criar a conta agora')
-    expect(wrapper.text()).not.toContain('Este convite já foi usado')
+    expect(wrapper.text()).toContain('Este convite não está mais disponível')
+    expect(wrapper.emitted('accepted')).toBeUndefined()
   })
 })

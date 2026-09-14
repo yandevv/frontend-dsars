@@ -14,9 +14,9 @@ import type { DataRequest, DeadlineStatus } from "@/features/requests/types/requ
 /**
  * A lista do titular — tabela no computador, cartões no celular.
  *
- * O fundo da linha segue o prazo, não o estado: "Aguardando complemento" que
- * vence amanhã é mais urgente do que "Em análise" com nove dias pela frente,
- * e é o prazo que a pessoa precisa enxergar primeiro.
+ * O fundo da linha segue o prazo, não o estado: uma requisição que vence
+ * amanhã é mais urgente do que outra com nove dias pela frente, e é o prazo
+ * que a pessoa precisa enxergar primeiro.
  */
 const { requests } = defineProps<{ requests: readonly DataRequest[] }>();
 
@@ -99,17 +99,6 @@ function detailRoute(request: DataRequest) {
   return { name: "my-request-detail", params: { id: request.id } };
 }
 
-/**
- * Concluída e ainda sem avaliação: a linha ganha o atalho para a pesquisa. Só
- * nessas, para o convite não virar ruído em quem tem muitas requisições.
- */
-function surveyPending(request: DataRequest): boolean {
-  return request.status === "concluida" && !request.survey;
-}
-
-function surveyRoute(request: DataRequest) {
-  return { ...detailRoute(request), query: { pesquisa: "1" } };
-}
 </script>
 
 <template>
@@ -194,13 +183,6 @@ function surveyRoute(request: DataRequest) {
                 Cancelar<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
               </button>
               <RouterLink
-                v-if="surveyPending(row.request)"
-                :to="surveyRoute(row.request)"
-                class="bg-brand px-3 py-1.5 text-sm font-semibold text-white no-underline hover:bg-brand-strong"
-              >
-                Avaliar<span class="sr-only"> o atendimento da requisição {{ row.request.protocol }}</span>
-              </RouterLink>
-              <RouterLink
                 :to="detailRoute(row.request)"
                 class="text-[15px] font-medium text-brand no-underline hover:text-brand-strong"
               >
@@ -273,13 +255,6 @@ function surveyRoute(request: DataRequest) {
             >
               Cancelar<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
             </button>
-            <RouterLink
-              v-if="surveyPending(row.request)"
-              :to="surveyRoute(row.request)"
-              class="bg-brand px-3 py-1.5 text-sm font-semibold text-white"
-            >
-              Avaliar<span class="sr-only"> o atendimento da requisição {{ row.request.protocol }}</span>
-            </RouterLink>
             <RouterLink :to="detailRoute(row.request)" class="text-[15px] font-medium text-brand">
               Abrir<span class="sr-only"> a requisição {{ row.request.protocol }}</span>
             </RouterLink>

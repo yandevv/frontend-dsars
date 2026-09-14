@@ -18,6 +18,7 @@ import {
   needsAccessFormat,
 } from '@/features/requests/utils/responseDeadline'
 import { createRequest } from '@/features/requests/services/requestService'
+import { messageOf } from '@/shared/api/ApiError'
 import type { Account } from '@/features/auth/types/auth'
 import type {
   AccessFormat,
@@ -58,7 +59,7 @@ const form = reactive({
 
 const attempted = ref(false)
 const status = ref<'idle' | 'sending'>('idle')
-const failure = ref(false)
+const failure = ref('')
 const summary = useTemplateRef<HTMLElement>('summary')
 
 const sending = computed(() => status.value === 'sending')
@@ -115,7 +116,7 @@ async function submit() {
   if (sending.value) return
 
   attempted.value = true
-  failure.value = false
+  failure.value = ''
 
   if (!isComplete.value) {
     await nextTick()
@@ -125,19 +126,16 @@ async function submit() {
 
   status.value = 'sending'
   try {
-    const receipt = await createRequest(
-      {
-        rightNumeral: rightNumeral.value,
-        accessFormat: format.value,
-        description: form.description,
-        attachments: form.attachments,
-      },
-      { name: account.name, email: account.email, verifiedAt: new Date().toISOString() },
-    )
+    const receipt = await createRequest({
+      rightNumeral: rightNumeral.value,
+      accessFormat: format.value,
+      description: form.description,
+      attachments: form.attachments,
+    })
     emit('registered', receipt)
-  } catch {
+  } catch (error) {
     status.value = 'idle'
-    failure.value = true
+    failure.value = messageOf(error)
     await nextTick()
     summary.value?.focus()
   }
@@ -169,7 +167,10 @@ async function submit() {
         v-if="failure"
         title="Não foi possível registrar a requisição"
       >
-        <p>Algo falhou no caminho e nada foi gravado. Tente enviar de novo em alguns instantes.</p>
+        <p>{{ failure }}</p>
+        <p v-if="!account.emailConfirmed">
+          Registrar uma requisição exige o e-mail da conta confirmado.
+        </p>
       </BaseAlert>
       <BaseAlert
         v-else

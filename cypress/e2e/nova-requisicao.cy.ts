@@ -4,11 +4,37 @@
  * Percorre a tela como o titular: escolher o direito, ver o prazo aparecer ao
  * lado, descrever o pedido e receber o protocolo.
  */
+import { DAY, HOUR, fromNow } from '../support/fixtures'
+
 const DESCRIPTION =
   'Solicito a eliminação dos meus dados de contato usados em campanhas de comunicação da rede.'
 
+/** O portal da organização registra e devolve protocolo, identificador e prazo. */
+function acceptRegistration() {
+  cy.intercept('POST', '/api/portal/demonstracao/requests', (request) => {
+    const body = String(request.body)
+    const simplified = body.includes('SIMPLIFIED')
+    request.reply({
+      statusCode: 201,
+      body: {
+        id: '01920000-0000-7000-8000-000000000461',
+        protocolNumber: '2026-000461',
+        rights: ['CONSENTED_DATA_DELETION'],
+        responseFormat: simplified ? 'SIMPLIFIED' : 'COMPLETE',
+        status: 'OPEN',
+        registeredAt: fromNow(0),
+        dueAt: fromNow(simplified ? 24 * HOUR : 15 * DAY),
+        deadlineStatus: simplified ? 'DUE_SOON' : 'ON_TIME',
+        attachments: [],
+      },
+    })
+  }).as('register')
+}
+
 describe('Nova requisição', () => {
   beforeEach(() => {
+    cy.signIn('titular')
+    acceptRegistration()
     cy.visit('/requisicoes/nova')
   })
 
@@ -54,6 +80,7 @@ describe('Nova requisição', () => {
 
     cy.get('textarea').type(DESCRIPTION)
     cy.get('button[type="submit"]').click()
+    cy.wait('@register').its('request.body').should('include', 'DATA_ACCESS').and('include', 'SIMPLIFIED')
     cy.contains('Resposta imediata, em até 24 horas do registro').should('be.visible')
   })
 
@@ -99,6 +126,25 @@ describe('Nova requisição', () => {
     cy.contains('Eliminação de dados').should('be.visible')
     cy.contains('Sem anexos').should('be.visible')
     cy.get('form').should('not.exist')
+  })
+
+  it('envia os anexos junto com o pedido', () => {
+    cy.get('input[type="radio"][value="VI"]').check()
+    cy.get('textarea').type(DESCRIPTION)
+    cy.get('input[type="file"]').selectFile(
+      {
+        contents: Cypress.Buffer.from('%PDF-1.4 documento'),
+        fileName: 'documento-identidade.pdf',
+        mimeType: 'application/pdf',
+      },
+      { force: true },
+    )
+    cy.get('button[type="submit"]').click()
+
+    cy.wait('@register')
+      .its('request.body')
+      .should('include', 'CONSENTED_DATA_DELETION')
+      .and('include', 'documento-identidade.pdf')
   })
 
   it('permite registrar outro pedido a partir do comprovante', () => {

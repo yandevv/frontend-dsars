@@ -5,11 +5,17 @@
  * requisição. Também confere o que a tela não oferece — cancelar é ato do
  * titular (RF010).
  */
+import { page, problem, queueSummaries } from '../support/fixtures'
+
 describe('Fila de atendimento', () => {
   beforeEach(() => {
     // A tabela de sete colunas só entra a partir de 1280 px; abaixo disso a
     // fila vira cartões, e é o que o último teste verifica.
     cy.viewport(1440, 900)
+    cy.signIn('encarregado')
+    cy.intercept('GET', '/api/organizations/*/requests?*', { body: page(queueSummaries()) }).as(
+      'queue',
+    )
     cy.visit('/painel/fila')
   })
 
@@ -58,7 +64,7 @@ describe('Fila de atendimento', () => {
   })
 
   it('explica o resultado vazio em vez de mostrar uma tabela em branco', () => {
-    cy.visit('/painel/fila?estado=aguardando-complemento&direito=VI')
+    cy.visit('/painel/fila?estado=cancelada&direito=VI')
 
     cy.contains('Nenhuma requisição com esses filtros').should('be.visible')
     cy.contains('A fila tem 8 requisições no total').should('be.visible')
@@ -82,7 +88,26 @@ describe('Fila de atendimento', () => {
   it('leva ao atendimento de uma requisição', () => {
     cy.get('tbody tr').first().contains('a', 'Acessar').click()
 
-    cy.location('pathname').should('eq', '/painel/requisicoes/01a01f0a-da00-7d89-9fae-9ed1e70505ae')
+    cy.location('pathname').should('eq', '/painel/requisicoes/01920000-0000-7000-8000-000000000418')
+  })
+
+  it('pede a fila da organização vinculada à conta', () => {
+    cy.wait('@queue').its('request.url').should('include', '/organizations/')
+  })
+
+  it('mostra a recusa do servidor em vez de uma fila vazia', () => {
+    cy.intercept('GET', '/api/organizations/*/requests?*', problem(503, 'Serviço em manutenção.'))
+    cy.visit('/painel/fila')
+
+    cy.contains('Serviço em manutenção.').should('be.visible')
+  })
+
+  it('manda o titular que abre a fila de volta ao próprio ambiente', () => {
+    cy.signIn('titular')
+    cy.intercept('GET', '/api/me/requests?*', { body: page([]) })
+    cy.visit('/painel/fila')
+
+    cy.location('pathname').should('eq', '/requisicoes')
   })
 
   it('troca a tabela por cartões em tela estreita', () => {

@@ -1,4 +1,6 @@
-import { ANALYSTS, DPO_NAME } from '@/features/requests/data/team'
+/** A equipe de demonstração, até a API oferecer a consulta dos membros. */
+const DPO_NAME = 'Helena Prado Vasconcelos'
+const ANALYSTS = ['Beatriz Falcão Ribeiro', 'Caio Duarte Salgado'] as const
 import { daysFromNow } from '@/shared/utils/date'
 import type { TeamMember } from '@/features/team/types/team'
 

@@ -4,9 +4,40 @@
  * A lista do titular: só os pedidos dele, prazo em primeiro plano e seleção em
  * lote restrita ao que ainda está em andamento.
  */
+import { fromNow, page, titularSummaries } from '../support/fixtures'
+
+/** Serve a lista da conta e aplica o cancelamento que chegar, como a API faria. */
+function serveList() {
+  const requests = titularSummaries()
+
+  cy.intercept('GET', '/api/me/requests?*', (request) => {
+    request.reply({ body: page(requests) })
+  }).as('list')
+
+  cy.intercept('POST', '/api/me/requests/cancel', (request) => {
+    const { ids } = request.body as { ids: string[]; reason: string }
+    const cancelled = requests
+      .filter((item) => ids.includes(item.id as string) && item.status === 'OPEN')
+      .map((item) => {
+        Object.assign(item, { status: 'CANCELLED', closedAt: fromNow(0), deadlineStatus: 'CLOSED' })
+        return {
+          id: item.id,
+          protocolNumber: item.protocolNumber,
+          status: 'CANCELLED',
+          closedAt: item.closedAt,
+          dueAt: item.dueAt,
+          onTime: true,
+        }
+      })
+    request.reply({ body: { cancelled, rejected: [] } })
+  }).as('cancel')
+}
+
 describe('Minhas requisições', () => {
   beforeEach(() => {
     cy.viewport(1440, 900)
+    cy.signIn('titular')
+    serveList()
     cy.visit('/requisicoes')
   })
 
@@ -18,11 +49,10 @@ describe('Minhas requisições', () => {
     cy.contains('encerradas').should('be.visible')
   })
 
-  it('lista só as requisições da conta, com a vencida no topo', () => {
+  it('lista as requisições da conta, com a vencida no topo', () => {
     cy.get('tbody tr').should('have.length', 5)
     cy.get('tbody tr').first().should('contain.text', '2026-000418')
     cy.get('tbody tr').first().should('contain.text', 'Venceu há 2 dias')
-    cy.get('main').should('not.contain.text', '2026-000431')
   })
 
   it('não expõe os códigos do documento de requisitos na tela', () => {
@@ -63,11 +93,11 @@ describe('Minhas requisições', () => {
       cy.contains('button', 'Confirmar cancelamento das 2').click()
     })
 
+    cy.wait('@cancel')
+      .its('request.body')
+      .should('deep.include', { reason: 'Consegui os documentos direto na unidade Centro.' })
     cy.get('[role="dialog"]').should('not.exist')
     cy.contains('2 requisições canceladas').should('be.visible')
-    cy.contains('Motivo registrado: “Consegui os documentos direto na unidade Centro.”').should(
-      'be.visible',
-    )
     cy.contains('tbody tr', '2026-000418').should('contain.text', 'Cancelada')
     cy.contains('tbody tr', '2026-000418').find('input[type="checkbox"]').should('be.disabled')
   })
@@ -82,7 +112,7 @@ describe('Minhas requisições', () => {
     })
 
     cy.get('[role="dialog"]').should('not.exist')
-    cy.contains('tbody tr', '2026-000447').should('contain.text', 'Em análise')
+    cy.contains('tbody tr', '2026-000447').should('contain.text', 'Em aberto')
   })
 
   it('troca a tabela por cartões no celular', () => {
@@ -92,5 +122,12 @@ describe('Minhas requisições', () => {
     cy.get('table').should('not.be.visible')
     cy.contains('Selecionar várias').should('be.visible')
     cy.get('main ul li').first().should('contain.text', '2026-000418')
+  })
+
+  it('avisa a conta pendente de confirmação e não deixa registrar', () => {
+    cy.signIn('titular', { emailVerified: false })
+    cy.visit('/requisicoes')
+
+    cy.contains('Sua conta está pendente de confirmação de e-mail').should('be.visible')
   })
 })

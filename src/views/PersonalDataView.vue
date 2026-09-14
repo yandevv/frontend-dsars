@@ -5,18 +5,19 @@ import BaseButton from "@/shared/ui/BaseButton.vue";
 import BaseDialog from "@/shared/ui/BaseDialog.vue";
 import SettingsLayout from "@/features/settings/components/SettingsLayout.vue";
 import {
-  ProfileError,
-  cancelEmailChange,
   fetchProfile,
   requestEmailChange,
+  revealPersonalData,
   updateProfile,
-  type ProfileRefusal,
 } from "@/features/settings/services/accountSettingsService";
 import { REVEAL_SECONDS, useReveal } from "@/features/settings/composables/useReveal";
-import { recordAccountEvent } from "@/features/audit/services/auditService";
-import { currentRole, useSession } from "@/features/auth/composables/useSession";
-import { maskDocument, maskPhone } from "@/features/settings/utils/mask";
-import type { AccountProfile, EditableField } from "@/features/settings/types/profile";
+import { currentRole, reloadSession } from "@/features/auth/composables/useSession";
+import { messageOf } from "@/shared/api/ApiError";
+import type {
+  AccountProfile,
+  EditableField,
+  RevealableField,
+} from "@/features/settings/types/profile";
 
 /**
  * Turno 1 · Tela 17 — Dados pessoais (RF016 / RF017).
@@ -26,21 +27,33 @@ import type { AccountProfile, EditableField } from "@/features/settings/types/pr
  * de e-mail ainda depende do link enviado ao novo endereço.
  */
 const role = currentRole();
-const { account } = useSession(role);
 
 const profile = ref<AccountProfile | null>(null);
-// Ver o dado sem máscara é acesso a dado pessoal, e entra na trilha.
-const reveal = useReveal(REVEAL_SECONDS, (key) =>
-  recordAccountEvent(account.value, {
-    operation: "acesso",
-    action: key === "document" ? "Documento exibido sem máscara" : "Telefone exibido sem máscara",
-    detail: `O dado ficou visível por ${REVEAL_SECONDS} segundos na tela de dados pessoais.`,
-  }),
-);
+const loadError = ref("");
+const reveal = useReveal(REVEAL_SECONDS);
+// O valor sem máscara vem do servidor a cada revelação, que fica na trilha.
+const revealedValues = ref<Partial<Record<RevealableField, string>>>({});
 
 onMounted(async () => {
-  profile.value = await fetchProfile(account.value.email);
+  try {
+    profile.value = await fetchProfile();
+  } catch (error) {
+    loadError.value = messageOf(error);
+  }
 });
+
+async function toggleReveal(key: RevealableField) {
+  if (reveal.isRevealed(key)) {
+    reveal.toggle(key);
+    return;
+  }
+  try {
+    revealedValues.value = { ...revealedValues.value, [key]: await revealPersonalData(key) };
+    reveal.toggle(key);
+  } catch (error) {
+    notice.value = { text: messageOf(error), tone: "atencao" };
+  }
+}
 
 type Notice = { text: string; tone: "ok" | "atencao" };
 const notice = ref<Notice | null>(null);
@@ -77,7 +90,7 @@ const fields = computed<FieldRow[]>(() => {
       help: "A troca só vale depois que você confirmar o novo endereço.",
       value: current.email,
       masked: false,
-      editable: !current.pendingEmail,
+      editable: true,
       badge: current.pendingEmail
         ? { text: "Troca pendente", tone: "pendente" }
         : { text: "Verificado", tone: "ok" },
@@ -85,18 +98,22 @@ const fields = computed<FieldRow[]>(() => {
     {
       key: "document",
       label: "Documento de identificação",
-      note: "CPF usado na comprovação de identidade.",
-      value: reveal.isRevealed("document") ? current.document : maskDocument(current.document),
+      note: "Documento usado na comprovação de identidade.",
+      value: reveal.isRevealed("document")
+        ? (revealedValues.value.document ?? "")
+        : (current.documentMasked ?? ""),
       masked: true,
       editable: false,
-      badge: { text: "Verificado", tone: "ok" },
+      badge: current.documentVerified ? { text: "Verificado", tone: "ok" } : undefined,
     },
     {
       key: "phone",
       label: "Telefone",
       note: "Usado só para contato sobre requisições.",
-      help: "Informe DDD e número. Sem telefone, o canal SMS fica indisponível.",
-      value: reveal.isRevealed("phone") ? current.phone : maskPhone(current.phone),
+      help: "Informe DDD e número.",
+      value: reveal.isRevealed("phone")
+        ? (revealedValues.value.phone ?? "")
+        : (current.phoneMasked ?? ""),
       masked: true,
       editable: true,
     },
@@ -111,8 +128,8 @@ function startEdit(key: EditableField) {
   const current = profile.value;
   if (!current) return;
   editing.value = key;
-  // O telefone entra no campo sem máscara: editar é também ver o dado.
-  draft.value = key === "name" ? current.name : key === "email" ? "" : current.phone;
+  // O telefone entra vazio: o servidor só devolve o valor mascarado.
+  draft.value = key === "name" ? current.name : "";
   draftError.value = "";
   notice.value = null;
 }
@@ -126,17 +143,7 @@ function stopEdit() {
 // ── Confirmação ──────────────────────────────────────────────────────────────
 const confirming = ref(false);
 const saving = ref(false);
-const password = ref("");
-const passwordError = ref("");
-
-const REFUSALS: Record<ProfileRefusal, string> = {
-  "nome-invalido": "Escreva o nome completo, com pelo menos nome e sobrenome.",
-  "email-invalido": "Confira o endereço: ele precisa ter o formato nome@provedor.com.",
-  "email-igual": "Este já é o e-mail da conta.",
-  "telefone-invalido": "Informe o DDD e o número, com 10 ou 11 dígitos.",
-  "senha-incorreta": "A senha não confere. Tente de novo.",
-  "sem-troca-pendente": "Não há troca de e-mail pendente.",
-};
+const confirmError = ref("");
 
 const CONFIRM_TEXT: Record<EditableField, { title: string; text: string; action: string }> = {
   name: {
@@ -151,7 +158,7 @@ const CONFIRM_TEXT: Record<EditableField, { title: string; text: string; action:
   },
   phone: {
     title: "Confirmar alteração do telefone",
-    text: "O telefone é usado apenas para contato sobre requisições e para o canal SMS, se estiver ligado.",
+    text: "O telefone é usado apenas para contato sobre requisições.",
     action: "Salvar alteração",
   },
 };
@@ -163,7 +170,7 @@ const oldValue = computed(() => {
     ? current.name
     : editing.value === "email"
       ? current.email
-      : current.phone;
+      : (current.phoneMasked ?? "Não informado");
 });
 
 function askConfirmation() {
@@ -176,9 +183,12 @@ function askConfirmation() {
     draftError.value = "O valor novo é igual ao atual.";
     return;
   }
+  if (editing.value === "email" && !/.+@.+\..+/.test(draft.value.trim())) {
+    draftError.value = "Confira o endereço: ele precisa ter o formato nome@provedor.com.";
+    return;
+  }
   draftError.value = "";
-  password.value = "";
-  passwordError.value = "";
+  confirmError.value = "";
   confirming.value = true;
 }
 
@@ -188,18 +198,18 @@ async function confirm() {
   if (!current || !field || saving.value) return;
 
   saving.value = true;
+  confirmError.value = "";
   try {
     if (field === "email") {
-      profile.value = await requestEmailChange(current.email, {
-        newEmail: draft.value,
-        password: password.value,
-      });
+      profile.value = await requestEmailChange(draft.value);
       notice.value = {
         text: `Troca de e-mail registrada. Enviamos um link de confirmação para ${profile.value.pendingEmail}; o endereço atual continua valendo até lá.`,
         tone: "atencao",
       };
     } else {
-      profile.value = await updateProfile(current.email, field, draft.value);
+      profile.value = await updateProfile(field, draft.value);
+      // O nome aparece no cabeçalho: a sessão relê o perfil.
+      if (field === "name") void reloadSession();
       notice.value = {
         text: `${field === "name" ? "Nome" : "Telefone"} atualizado. A alteração foi registrada no histórico da conta.`,
         tone: "ok",
@@ -208,26 +218,10 @@ async function confirm() {
     confirming.value = false;
     stopEdit();
   } catch (error) {
-    if (!(error instanceof ProfileError)) throw error;
-    if (error.refusal === "senha-incorreta") {
-      passwordError.value = REFUSALS[error.refusal];
-    } else {
-      confirming.value = false;
-      draftError.value = REFUSALS[error.refusal];
-    }
+    confirmError.value = messageOf(error);
   } finally {
     saving.value = false;
   }
-}
-
-async function cancelChange() {
-  const current = profile.value;
-  if (!current) return;
-  profile.value = await cancelEmailChange(current.email);
-  notice.value = {
-    text: `Troca de e-mail cancelada. O endereço ${current.email} continua sendo o da conta.`,
-    tone: "ok",
-  };
 }
 </script>
 
@@ -259,7 +253,8 @@ async function cancelChange() {
       </button>
     </div>
 
-    <p v-if="!profile" role="status" class="text-[15px] text-ink-soft">Carregando seus dados…</p>
+    <p v-if="loadError" role="alert" class="text-[15px] text-danger">{{ loadError }}</p>
+    <p v-else-if="!profile" role="status" class="text-[15px] text-ink-soft">Carregando seus dados…</p>
 
     <template v-else>
       <!-- Troca de e-mail aguardando o link do novo endereço. -->
@@ -281,20 +276,10 @@ async function cancelChange() {
           <BaseButton
             size="sm"
             variant="secondary"
-            :to="{
-              name: 'email-confirmation',
-              query: { origem: 'troca', email: profile.pendingEmail },
-            }"
+            @click="startEdit('email')"
           >
-            Reenviar link
+            Enviar para outro endereço
           </BaseButton>
-          <button
-            type="button"
-            class="px-1.5 text-[15px] font-medium text-brand underline hover:text-brand-strong"
-            @click="cancelChange"
-          >
-            Cancelar troca
-          </button>
         </div>
       </section>
 
@@ -359,7 +344,7 @@ async function cancelChange() {
                       ? `Ocultar ${field.label.toLowerCase()}`
                       : `Revelar ${field.label.toLowerCase()} por ${REVEAL_SECONDS} segundos`
                   "
-                  @click="reveal.toggle(field.key)"
+                  @click="toggleReveal(field.key as RevealableField)"
                 >
                   {{ reveal.isRevealed(field.key) ? "Ocultar" : "Revelar" }}
                 </button>
@@ -400,7 +385,7 @@ async function cancelChange() {
         <p class="flex gap-3 px-5 py-[18px] text-sm leading-relaxed text-ink-soft sm:px-[22px]">
           <span aria-hidden="true" class="w-[3px] shrink-0 self-stretch bg-field-disabled-line" />
           <span>
-            O CPF já verificado não pode ser alterado por aqui: ele sustenta a comprovação de
+            O documento não pode ser alterado por aqui: ele sustenta a comprovação de
             identidade das requisições registradas. Para corrigir um documento errado,
             <RouterLink
               v-if="role === 'titular'"
@@ -436,23 +421,9 @@ async function cancelChange() {
           </dd>
         </div>
       </dl>
-      <div v-if="editing === 'email'" class="flex flex-col gap-1.5">
-        <label for="senha-confirmacao" class="text-[15px] font-medium text-ink">Senha atual</label>
-        <input
-          id="senha-confirmacao"
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          placeholder="Para confirmar que é você"
-          :aria-invalid="passwordError ? 'true' : undefined"
-          class="h-[46px] border bg-surface px-3 text-base text-ink focus:outline-none focus:ring-2 focus:ring-brand"
-          :class="passwordError ? 'border-2 border-danger' : 'border-field-line'"
-          @keydown.enter.prevent="confirm"
-        />
-        <p v-if="passwordError" class="text-[13px] text-danger" aria-live="polite">
-          {{ passwordError }}
-        </p>
-      </div>
+      <p v-if="confirmError" class="text-[13px] text-danger" role="alert">
+        {{ confirmError }}
+      </p>
       <template #note>A alteração fica registrada no histórico da conta.</template>
       <template #actions>
         <BaseButton variant="secondary" :disabled="saving" @click="confirming = false">

@@ -27,12 +27,11 @@ const immediate = computed(() => requestIsImmediate(request))
 const due = computed(() => formatDue(request.dueAt, immediate.value))
 
 /** O prazo deste pedido, em palavras — varia com o direito e o formato. */
-const rule = computed(() => {
-  const from = request.origin ? 'do recebimento' : 'do registro'
-  return immediate.value
-    ? `Resposta imediata, em até 24 horas ${from}`
-    : `Até ${LEGAL_DEADLINE_DAYS} dias, contados ${from}`
-})
+const rule = computed(() =>
+  immediate.value
+    ? 'Resposta imediata, em até 24 horas do registro'
+    : `Até ${LEGAL_DEADLINE_DAYS} dias, contados do registro`,
+)
 
 const cardClasses = computed(
   () =>
@@ -77,10 +76,7 @@ const detail = computed(() => {
       ? `Você cancelou este pedido em ${formatDate(request.closedAt)}.`
       : `Cancelada pelo titular em ${formatDate(request.closedAt)}.`
   }
-  // Registrada pela encarregada, o prazo conta do dia em que o pedido chegou.
-  return request.origin
-    ? `Prazo legal em ${due.value} · recebido em ${formatDate(request.origin.receivedAt)}`
-    : `Prazo legal em ${due.value} · registro em ${formatDate(request.registeredAt)}`
+  return `Prazo legal em ${due.value} · registro em ${formatDate(request.registeredAt)}`
 })
 </script>
 

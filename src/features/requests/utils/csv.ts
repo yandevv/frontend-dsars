@@ -14,7 +14,6 @@ const COLUMNS = [
   'Registrada em',
   'Prazo legal',
   'Situação do prazo',
-  'Responsável',
 ] as const
 
 /** Escapa segundo o RFC 4180: aspas dobradas e campo entre aspas. */
@@ -34,13 +33,12 @@ export function queueToCsv(requests: readonly DataRequest[]): string {
     [
       request.protocol,
       findRight(request.rightNumeral)?.requestLabel ?? request.rightNumeral,
-      `art. 18, ${request.rightNumeral}`,
+      request.rightNumeral,
       request.subject.name,
       REQUEST_STATUS_LABELS[request.status],
       formatDate(request.registeredAt),
       formatDue(request.dueAt, requestIsImmediate(request)),
       deadlineLabel(request),
-      request.assignee ?? 'Sem responsável',
     ]
       .map(cell)
       .join(';'),

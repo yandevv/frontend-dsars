@@ -6,22 +6,19 @@ import BaseDialog from '@/shared/ui/BaseDialog.vue'
 import BaseField from '@/shared/ui/BaseField.vue'
 import BaseSelect from '@/shared/ui/BaseSelect.vue'
 import { INVITE_VALIDITY_DAYS } from '@/features/auth/constants/invitePolicy'
-import { JOB_TITLES, ORGANIZATION_DOMAIN } from '@/features/team/constants/teamPolicy'
+import { JOB_TITLES } from '@/features/team/constants/teamPolicy'
 import { TeamRuleError, inviteMember, type TeamRule } from '@/features/team/services/teamService'
+import { messageOf } from '@/shared/api/ApiError'
 import type { Account } from '@/features/auth/types/auth'
 import type { Invite } from '@/features/auth/types/invite'
 
 /**
- * Convidar alguém da organização para atender. Duas fases na mesma janela:
- * o formulário e, depois do envio, o link do convite para copiar.
+ * Convidar alguém para atender pela organização. Duas fases na mesma janela:
+ * o formulário e, depois do envio, a confirmação.
  */
-const { by, linkOf } = defineProps<{
-  by: Pick<Account, 'name' | 'email'>
-  /** O endereço completo do convite — quem monta é a tela, que conhece o roteador. */
-  linkOf: (invite: Invite) => string
-}>()
+const { by } = defineProps<{ by: Pick<Account, 'name' | 'email'> }>()
 
-const emit = defineEmits<{ invited: [Invite]; copy: [Invite] }>()
+const emit = defineEmits<{ invited: [Invite] }>()
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -44,13 +41,13 @@ watch(open, (value) => {
 
 const REFUSALS: Record<TeamRule, string> = {
   'email-invalido': 'Confira o endereço — ele precisa ter um @ e um domínio.',
-  'fora-da-organizacao': `Só endereços @${ORGANIZATION_DOMAIN} recebem convite de encarregado.`,
   'ja-e-membro': 'Esta pessoa já faz parte da equipe.',
-  'convite-pendente': 'Já existe um convite válido para este endereço. Copie o link ou revogue-o antes.',
 }
+const failure = ref('')
 
 const emailError = computed(() => {
   if (refusal.value) return REFUSALS[refusal.value]
+  if (failure.value) return failure.value
   if (attempted.value && email.value.trim() === '') return 'Informe o e-mail de quem será convidado.'
   return undefined
 })
@@ -61,6 +58,7 @@ async function send() {
   if (sending.value) return
   attempted.value = true
   refusal.value = null
+  failure.value = ''
   if (email.value.trim() === '') return
 
   sending.value = true
@@ -68,8 +66,8 @@ async function send() {
     created.value = await inviteMember({ email: email.value, jobTitle: jobTitle.value }, by)
     emit('invited', created.value)
   } catch (error) {
-    if (!(error instanceof TeamRuleError)) throw error
-    refusal.value = error.rule
+    if (error instanceof TeamRuleError) refusal.value = error.rule
+    else failure.value = messageOf(error)
   } finally {
     sending.value = false
   }
@@ -86,13 +84,8 @@ async function send() {
     <template v-if="created">
       <p class="text-[15px] leading-relaxed text-ink-body">
         O convite foi enviado para <span class="font-semibold">{{ created.email }}</span> e vale
-        por {{ INVITE_VALIDITY_DAYS }} dias. Se preferir, envie o link por outro canal interno.
-      </p>
-      <p
-        class="break-all border border-line bg-surface-muted px-3.5 py-3 font-label text-sm text-ink"
-        data-convite
-      >
-        {{ linkOf(created) }}
+        por {{ INVITE_VALIDITY_DAYS }} dias. O link nominal chega por e-mail; para aceitar, a
+        pessoa entra com a conta desse endereço.
       </p>
     </template>
 
@@ -103,8 +96,9 @@ async function send() {
       @submit.prevent="send"
     >
       <p class="text-[15px] leading-relaxed text-ink-body">
-        A pessoa recebe um link nominal e cria a conta com o perfil de encarregado, preso a esta
-        organização. Ninguém consegue esse perfil pelo cadastro comum.
+        A pessoa recebe um link nominal e, ao aceitá-lo com a conta desse endereço, passa a
+        responder como encarregado desta organização. Ninguém consegue esse perfil pelo cadastro
+        comum.
       </p>
       <BaseField
         v-model="email"
@@ -112,7 +106,7 @@ async function send() {
         type="email"
         autocomplete="off"
         required
-        :placeholder="`nome@${ORGANIZATION_DOMAIN}`"
+        placeholder="nome@organizacao.com.br"
         :disabled="sending"
         :error="emailError"
       />
@@ -132,18 +126,12 @@ async function send() {
     </form>
 
     <template #note>
-      O envio e a revogação de convites ficam registrados na trilha de auditoria.
+      O envio de convites fica registrado na trilha de auditoria.
     </template>
     <template #actions>
       <template v-if="created">
-        <BaseButton
-          variant="secondary"
-          @click="open = false"
-        >
+        <BaseButton @click="open = false">
           Fechar
-        </BaseButton>
-        <BaseButton @click="emit('copy', created)">
-          Copiar link
         </BaseButton>
       </template>
       <template v-else>

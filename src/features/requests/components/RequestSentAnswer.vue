@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import BasePanel from '@/shared/ui/BasePanel.vue'
-import { REQUEST_OUTCOME_LABELS } from '@/features/requests/constants/requestStatus'
 import { formatDateTime } from '@/shared/utils/date'
 import type { RequestAnswer } from '@/features/requests/types/request'
 import type { RequestAudience } from '@/features/requests/types/audience'
@@ -10,6 +9,8 @@ const { audience = 'encarregado' } = defineProps<{
   answer: RequestAnswer
   audience?: RequestAudience
 }>()
+
+defineEmits<{ download: [attachmentId: string] }>()
 </script>
 
 <template>
@@ -19,7 +20,7 @@ const { audience = 'encarregado' } = defineProps<{
   >
     <template #action>
       <p class="text-sm text-ink-soft">
-        {{ REQUEST_OUTCOME_LABELS[answer.outcome] }} · {{ formatDateTime(answer.sentAt) }} ·
+        {{ formatDateTime(answer.sentAt) }} ·
         {{ answer.author }}
       </p>
     </template>
@@ -30,7 +31,7 @@ const { audience = 'encarregado' } = defineProps<{
       </p>
 
       <ul
-        v-if="answer.attachments?.length"
+        v-if="answer.attachments.length"
         class="flex flex-col gap-2"
       >
         <li
@@ -42,21 +43,16 @@ const { audience = 'encarregado' } = defineProps<{
             <span class="text-[15px] font-semibold text-ink">{{ attachment.name }}</span>
             <span class="text-[13px] text-ink-muted">{{ attachment.meta }}</span>
           </span>
-          <span class="text-[15px] font-medium text-brand">Baixar</span>
+          <button
+            v-if="attachment.id"
+            type="button"
+            class="text-[15px] font-medium text-brand underline-offset-4 hover:underline"
+            @click="$emit('download', attachment.id)"
+          >
+            Baixar<span class="sr-only"> {{ attachment.name }}</span>
+          </button>
         </li>
       </ul>
-
-      <div
-        v-if="answer.legalBasis"
-        class="flex flex-col gap-1 border-l-[3px] border-line py-1 pl-4"
-      >
-        <p class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
-          Fundamento informado
-        </p>
-        <p class="text-[15px] leading-normal text-ink-body">
-          {{ answer.legalBasis }}
-        </p>
-      </div>
 
       <p
         v-if="audience === 'titular'"

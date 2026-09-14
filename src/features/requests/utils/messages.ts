@@ -1,13 +1,13 @@
-import { MESSAGE_EDIT_WINDOW_MINUTES } from '@/features/requests/constants/requestPolicy'
 import type { RequestMessage } from '@/features/requests/types/request'
 
 /**
- * Uma mensagem pode ser editada até meia hora depois do envio.
+ * Uma mensagem própria pode ser editada até o fim da janela que o servidor
+ * informa — meia hora depois do envio.
  *
- * Fica fora do serviço porque a tela usa a mesma regra para decidir se mostra
- * o botão de editar — e as duas não podem discordar.
+ * Fica fora do componente porque a mesma regra decide se o botão de editar
+ * aparece; quem recusa de verdade uma edição atrasada é o servidor.
  */
 export function canEditMessage(message: RequestMessage, now: Date = new Date()): boolean {
-  const elapsed = now.getTime() - new Date(message.sentAt).getTime()
-  return elapsed <= MESSAGE_EDIT_WINDOW_MINUTES * 60_000
+  if (!message.mine || !message.editableUntil) return false
+  return new Date(message.editableUntil).getTime() > now.getTime()
 }

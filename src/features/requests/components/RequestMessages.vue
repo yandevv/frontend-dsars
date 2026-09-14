@@ -13,7 +13,6 @@ import {
 import { canEditMessage } from "@/features/requests/utils/messages";
 import { formatDateTime } from "@/shared/utils/date";
 import type {
-  MessageActor,
   MessageKind,
   RequestAttachment,
   RequestMessage,
@@ -31,18 +30,18 @@ import type {
  */
 const {
   messages,
-  viewer,
   open,
   mode = "mensagem",
   sending = false,
 } = defineProps<{
   messages: readonly RequestMessage[];
-  /** Quem está lendo — decide o que é "meu" e o que dá para mexer. */
-  viewer: MessageActor;
   /** Requisição em aberto: aceita mensagens novas, edições e exclusões. */
   open: boolean;
-  /** `complemento` transforma o campo em pedido de complemento ao titular. */
-  mode?: Exclude<MessageKind, "parecer">;
+  /**
+   * `complemento` prepara o campo para pedir uma informação ao titular. Sai
+   * como mensagem comum: a requisição continua aberta e o prazo, correndo.
+   */
+  mode?: "mensagem" | "complemento";
   sending?: boolean;
 }>();
 
@@ -50,15 +49,12 @@ const emit = defineEmits<{
   send: [message: { text: string; attachments: RequestAttachment[] }];
   edit: [change: { id: string; text: string }];
   remove: [id: string];
+  download: [attachmentId: string];
   "cancel-complement": [];
 }>();
 
 // ── Leitura ──────────────────────────────────────────────────────────────────
-const shown = computed(() =>
-  messages
-    .filter((message) => !message.deletedAt)
-    .sort((a, b) => a.sentAt.localeCompare(b.sentAt)),
-);
+const shown = computed(() => [...messages].sort((a, b) => a.sentAt.localeCompare(b.sentAt)));
 
 /** O relógio anda: o botão de editar some sozinho quando a meia hora acaba. */
 const now = ref(new Date());
@@ -69,7 +65,7 @@ onMounted(() => {
 onBeforeUnmount(() => clearInterval(clock));
 
 function mine(message: RequestMessage): boolean {
-  return message.authorRole === viewer.role && message.author === viewer.name;
+  return message.mine;
 }
 
 function authorLabel(message: RequestMessage): string {
@@ -82,7 +78,6 @@ function roleLabel(message: RequestMessage): string {
 
 const KIND_LABELS: Record<MessageKind, string | null> = {
   mensagem: null,
-  complemento: "Pedido de complemento",
   parecer: "Parecer final",
 };
 
@@ -195,7 +190,6 @@ defineExpose({ focus: () => field.value?.focus(), reset });
         class="flex flex-col gap-2.5 border-b border-line-soft px-[22px] py-[18px] last:border-b-0"
         :class="[
           message.authorRole === 'encarregado' ? 'bg-surface' : 'bg-surface-subtle',
-          message.kind === 'complemento' ? 'border-l-[3px] border-l-pending' : '',
           message.kind === 'parecer' ? 'border-l-[3px] border-l-brand' : '',
         ]"
       >
@@ -205,8 +199,7 @@ defineExpose({ focus: () => field.value?.focus(), reset });
             <span class="text-[13px] text-ink-muted">{{ roleLabel(message) }}</span>
             <span
               v-if="KIND_LABELS[message.kind]"
-              class="font-label text-[11px] font-semibold uppercase tracking-[0.06em]"
-              :class="message.kind === 'complemento' ? 'text-pending' : 'text-brand'"
+              class="font-label text-[11px] font-semibold uppercase tracking-[0.06em] text-brand"
             >
               {{ KIND_LABELS[message.kind] }}
             </span>
@@ -250,7 +243,14 @@ defineExpose({ focus: () => field.value?.focus(), reset });
               <span class="text-[15px] font-semibold text-ink">{{ attachment.name }}</span>
               <span class="text-[13px] text-ink-muted">{{ attachment.meta }}</span>
             </span>
-            <span class="text-[15px] font-medium text-brand">Baixar</span>
+            <button
+              v-if="attachment.id"
+              type="button"
+              class="text-[15px] font-medium text-brand underline-offset-4 hover:underline"
+              @click="emit('download', attachment.id)"
+            >
+              Baixar<span class="sr-only"> {{ attachment.name }}</span>
+            </button>
           </li>
         </ul>
 
@@ -300,7 +300,7 @@ defineExpose({ focus: () => field.value?.focus(), reset });
         :label="complement ? 'Pedido de complemento ao titular' : 'Nova mensagem'"
         :description="
           complement
-            ? 'Diga exatamente o que falta para decidir. O titular recebe o pedido no portal e por e-mail, e a requisição passa a aguardar o complemento — o prazo legal continua correndo.'
+            ? 'Diga exatamente o que falta para decidir. O titular recebe a mensagem no portal e pode responder pela própria requisição — o prazo legal continua correndo.'
             : undefined
         "
         :rows="complement ? 4 : 3"

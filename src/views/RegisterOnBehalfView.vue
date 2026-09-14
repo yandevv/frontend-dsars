@@ -6,7 +6,6 @@ import AppShell from '@/shared/layout/AppShell.vue'
 import OnBehalfAside from '@/features/requests/components/OnBehalfAside.vue'
 import OnBehalfForm from '@/features/requests/components/OnBehalfForm.vue'
 import OnBehalfReceiptCard from '@/features/requests/components/OnBehalfReceiptCard.vue'
-import { todayInput } from '@/features/requests/utils/onBehalf'
 import { isImmediate } from '@/features/requests/utils/responseDeadline'
 import type { AccessFormat, OnBehalfReceipt } from '@/features/requests/types/request'
 
@@ -19,7 +18,6 @@ import type { AccessFormat, OnBehalfReceipt } from '@/features/requests/types/re
  */
 const receipt = ref<OnBehalfReceipt | null>(null)
 const rightNumeral = ref('')
-const receivedOn = ref(todayInput())
 const accessFormat = ref<AccessFormat | ''>('')
 const formKey = ref(0)
 
@@ -33,7 +31,6 @@ function restart() {
   receipt.value = null
   rightNumeral.value = ''
   accessFormat.value = ''
-  receivedOn.value = todayInput()
   formKey.value += 1
 }
 </script>
@@ -65,13 +62,10 @@ function restart() {
         <OnBehalfForm
           :key="formKey"
           v-model:right="rightNumeral"
-          v-model:received-on="receivedOn"
           v-model:access-format="accessFormat"
-          :author="account.name"
           @registered="onRegistered"
         />
         <OnBehalfAside
-          :received-on="receivedOn"
           :author="account.name"
           :immediate="isImmediate(rightNumeral, accessFormat || undefined)"
         />

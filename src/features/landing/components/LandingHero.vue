@@ -26,7 +26,7 @@ defineProps<{ tenant: Tenant }>()
         </h1>
 
         <p class="text-[15px] leading-[1.6] text-pretty text-ink-body lg:max-w-[58ch] lg:text-lg">
-          {{ tenant.article }} {{ tenant.name }} recebe por aqui os pedidos que a Lei Geral de
+          {{ tenant.name }} recebe por aqui os pedidos que a Lei Geral de
           Proteção de Dados garante a você. Cada pedido recebe um número de protocolo, um prazo
           de resposta e um histórico que fica registrado.
         </p>

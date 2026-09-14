@@ -25,9 +25,7 @@ defineEmits<{ export: [] }>()
 
 const titular = computed(() => audience === 'titular')
 
-const shown = computed(() =>
-  titular.value ? entries.filter((entry) => !entry.internal) : entries,
-)
+const shown = computed(() => entries)
 </script>
 
 <template>

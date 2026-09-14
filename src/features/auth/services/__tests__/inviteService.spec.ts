@@ -1,80 +1,65 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
-import {
-  InviteError,
-  acceptInvite,
-  fetchInvite,
-} from '@/features/auth/services/inviteService'
+import { InviteError, acceptInvite, fetchInvite } from '../inviteService'
+import { mockApi, problem, route } from '@/test/api'
+import type { ApiInvitePreview } from '@/shared/api/contracts'
 
-// O atraso simulado existe para a tela ter um estado de envio; aqui só atrasaria a suíte.
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+function preview(status: ApiInvitePreview['status']): ApiInvitePreview {
+  return {
+    organizationName: 'Instituto Meridiano de Saúde',
+    email: 'bruno@meridiano.org.br',
+    role: 'DPO',
+    expiresAt: '2026-10-03T12:00:00.000Z',
+    status,
+  }
+}
 
 describe('inviteService', () => {
-  it('entrega o convite em aberto', async () => {
-    const invite = await fetchInvite('convite-valido')
+  it('entrega o convite em aberto, com a organização e o endereço', async () => {
+    mockApi([route('GET', '/invites/ficha', preview('PENDING'))])
 
-    expect(invite.email).toBe('bruno.carvalho@meridianosaude.org.br')
-    expect(invite.role).toBe('encarregado')
-  })
-
-  it('mantém o convite em aberto válido a partir de hoje', async () => {
-    const invite = await fetchInvite('convite-valido')
-
-    // Datas fixas venceriam sozinhas e tirariam a tela do alcance do protótipo.
-    expect(new Date(invite.expiresAt).getTime()).toBeGreaterThan(Date.now())
-  })
-
-  it('recusa o convite vencido e devolve os dados para a tela explicar', async () => {
-    const error = await fetchInvite('convite-expirado').catch((reason: unknown) => reason)
-
-    expect(error).toBeInstanceOf(InviteError)
-    expect((error as InviteError).reason).toBe('expirado')
-    expect((error as InviteError).invite?.email).toBe('carla.menezes@meridianosaude.org.br')
-  })
-
-  it('recusa o convite cuja conta já foi criada', async () => {
-    const error = await fetchInvite('convite-usado').catch((reason: unknown) => reason)
-
-    expect((error as InviteError).reason).toBe('utilizado')
-    expect((error as InviteError).invite?.usedAt).toBeDefined()
-  })
-
-  it('recusa um código que não corresponde a convite nenhum, sem citar dados', async () => {
-    const error = await fetchInvite('nao-existe').catch((reason: unknown) => reason)
-
-    expect((error as InviteError).reason).toBe('invalido')
-    expect((error as InviteError).invite).toBeUndefined()
-  })
-
-  it('cria a conta com o perfil do convite e com o e-mail já confirmado', async () => {
-    const account = await acceptInvite({
-      token: 'convite-valido',
-      name: '  Bruno Carvalho de Souza  ',
-      password: 'SenhaSegura!123',
-    })
-
-    expect(account).toMatchObject({
-      name: 'Bruno Carvalho de Souza',
-      email: 'bruno.carvalho@meridianosaude.org.br',
-      role: 'encarregado',
-      // O link do convite foi aberto: é a prova que o RN005 pede.
-      emailConfirmed: true,
+    await expect(fetchInvite('ficha')).resolves.toEqual({
+      token: 'ficha',
+      email: 'bruno@meridiano.org.br',
+      organizationName: 'Instituto Meridiano de Saúde',
+      expiresAt: '2026-10-03T12:00:00.000Z',
     })
   })
 
-  it('gasta o convite: o mesmo link não serve duas vezes', async () => {
-    // A aceitação do caso anterior já consumiu o token — ele vive no módulo,
-    // como viverá no banco.
-    const error = await fetchInvite('convite-valido').catch((reason: unknown) => reason)
+  it('recusa o vencido e o já aceito, devolvendo os dados para a tela explicar', async () => {
+    mockApi([
+      route('GET', '/invites/vencido', preview('EXPIRED')),
+      route('GET', '/invites/aceito', preview('ACCEPTED')),
+    ])
 
-    expect((error as InviteError).reason).toBe('utilizado')
+    const expired = await fetchInvite('vencido').catch((error: unknown) => error)
+    const accepted = await fetchInvite('aceito').catch((error: unknown) => error)
 
-    const second = await acceptInvite({
-      token: 'convite-valido',
-      name: 'Outra Pessoa',
-      password: 'SenhaSegura!123',
-    }).catch((reason: unknown) => reason)
+    expect(expired).toBeInstanceOf(InviteError)
+    expect(expired).toMatchObject({ reason: 'expirado', invite: { token: 'vencido' } })
+    expect(accepted).toMatchObject({ reason: 'utilizado' })
+  })
 
-    expect((second as InviteError).reason).toBe('utilizado')
+  it('trata revogado e inexistente da mesma forma, sem citar dados', async () => {
+    mockApi([
+      route('GET', '/invites/revogado', preview('REVOKED')),
+      route('GET', '/invites/nenhum', problem(404, 'Este convite não existe.')),
+    ])
+
+    await expect(fetchInvite('revogado')).rejects.toMatchObject({ reason: 'invalido', invite: undefined })
+    await expect(fetchInvite('nenhum')).rejects.toMatchObject({ reason: 'invalido', invite: undefined })
+  })
+
+  it('aceita o convite com a conta da sessão', async () => {
+    const { calls } = mockApi([
+      route('POST', '/invites/ficha/accept', {
+        organizationId: 'org-1',
+        organizationName: 'Instituto Meridiano de Saúde',
+        role: 'DPO',
+      }),
+    ])
+
+    await expect(acceptInvite('ficha')).resolves.toMatchObject({ organizationId: 'org-1' })
+    expect(calls[0]!.method).toBe('POST')
   })
 })

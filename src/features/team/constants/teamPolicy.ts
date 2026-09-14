@@ -4,6 +4,3 @@ export const JOB_TITLES: readonly string[] = [
   'Encarregado substituto',
   'Apoio jurídico',
 ]
-
-/** Só endereços da organização recebem convite: o perfil fica preso a ela. */
-export const ORGANIZATION_DOMAIN = 'meridianosaude.org.br'

@@ -1,59 +1,55 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from 'vitest'
 
-import { DEMO_REQUESTS } from "@/features/requests/data/requests";
-import { fetchReportRecords } from "@/features/reports/services/reportService";
-import { SurveyError, submitSurvey, surveyAvailable } from "../surveyService";
+import { submitSurvey, surveyAvailable } from '../surveyService'
+import { mockApi, problem, route } from '@/test/api'
+import { apiDetails, makeRequest } from '@/test/factories'
 
-vi.mock("@/features/auth/services/fakeNetwork", () => ({ delay: () => Promise.resolve() }));
+describe('surveyService', () => {
+  it('só libera a pesquisa para requisições concluídas', () => {
+    expect(surveyAvailable(makeRequest({ status: 'concluida' }))).toBe(true)
+    expect(surveyAvailable(makeRequest({ status: 'aberta' }))).toBe(false)
+    expect(surveyAvailable(makeRequest({ status: 'cancelada' }))).toBe(false)
+  })
 
-const byProtocol = (protocol: string) => DEMO_REQUESTS.find((item) => item.protocol === protocol)!;
+  it('envia a nota e o comentário sem espaços e relê a requisição', async () => {
+    const { calls } = mockApi([
+      route('POST', '/requests/r1/survey', { rating: 4, comment: 'Rápido.', respondedAt: '2026-09-26' }),
+      route('GET', '/requests/r1', apiDetails({ id: 'r1', status: 'COMPLETED' })),
+      route('GET', '/requests/r1/messages', { items: [] }),
+      route('GET', '/requests/r1/survey', {
+        available: true,
+        answered: true,
+        response: { rating: 4, comment: 'Rápido.', respondedAt: '2026-09-26T12:00:00.000Z' },
+      }),
+    ])
 
-describe("surveyService", () => {
-  it("só libera a pesquisa para requisições concluídas", () => {
-    expect(surveyAvailable(byProtocol("2026-000392"))).toBe(true);
-    expect(surveyAvailable(byProtocol("2026-000418"))).toBe(false);
-    expect(surveyAvailable(byProtocol("2026-000377"))).toBe(false);
-  });
+    const request = await submitSurvey('r1', { rating: 4, comment: '  Rápido.  ' })
 
-  it("recusa a pesquisa de uma requisição em andamento ou cancelada", async () => {
-    await expect(submitSurvey(byProtocol("2026-000418").id, { rating: 5 })).rejects.toMatchObject({
-      refusal: "nao-liberada",
-    });
-    await expect(submitSurvey(byProtocol("2026-000377").id, { rating: 5 })).rejects.toMatchObject({
-      refusal: "nao-liberada",
-    });
-  });
+    expect(calls[0]!.body).toEqual({ rating: 4, comment: 'Rápido.' })
+    expect(request.survey).toMatchObject({ rating: 4, comment: 'Rápido.' })
+  })
 
-  it("recusa nota fora da escala e comentário longo demais", async () => {
-    const id = byProtocol("2026-000392").id;
+  it('não envia comentário vazio', async () => {
+    const { calls } = mockApi([
+      route('POST', '/requests/r1/survey', {}),
+      route('GET', '/requests/r1', apiDetails({ id: 'r1' })),
+      route('GET', '/requests/r1/messages', { items: [] }),
+    ])
 
-    await expect(submitSurvey(id, { rating: 6 })).rejects.toMatchObject({ refusal: "nota-invalida" });
-    await expect(submitSurvey(id, { rating: 4, comment: "a".repeat(601) })).rejects.toMatchObject({
-      refusal: "comentario-longo",
-    });
-  });
+    await submitSurvey('r1', { rating: 5, comment: '   ' })
 
-  it("registra a avaliação uma única vez, sem pôr a nota na trilha", async () => {
-    const id = byProtocol("2026-000392").id;
+    expect(calls[0]!.body).toEqual({ rating: 5 })
+  })
 
-    const answered = await submitSurvey(id, { rating: 4, comment: "  Faltou explicar o formato.  " });
+  it('repassa a recusa de uma segunda resposta', async () => {
+    mockApi([
+      route(
+        'POST',
+        '/requests/r1/survey',
+        problem(409, 'A pesquisa de satisfação desta requisição já foi respondida.'),
+      ),
+    ])
 
-    expect(answered.survey).toMatchObject({ rating: 4, comment: "Faltou explicar o formato." });
-    expect(answered.timeline[0]?.title).toBe("Pesquisa de satisfação respondida");
-    expect(answered.timeline[0]?.detail).not.toMatch(/\d/);
-
-    await expect(submitSurvey(id, { rating: 1 })).rejects.toBeInstanceOf(SurveyError);
-    await expect(submitSurvey(id, { rating: 1 })).rejects.toMatchObject({ refusal: "ja-respondida" });
-  });
-
-  it("entrega a nota ao relatório sem protocolo nem titular", async () => {
-    const records = await fetchReportRecords();
-
-    const rated = records.filter((record) => record.rating === 4);
-    expect(rated.length).toBeGreaterThan(0);
-    for (const record of records) {
-      expect(record).not.toHaveProperty("protocol");
-      expect(record).not.toHaveProperty("subject");
-    }
-  });
-});
+    await expect(submitSurvey('r1', { rating: 5 })).rejects.toMatchObject({ status: 409 })
+  })
+})

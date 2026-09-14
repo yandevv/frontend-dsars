@@ -1,87 +1,82 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
-import {
-  SecurityError,
-  changePassword,
-  currentPasswordOf,
-  endOtherSessions,
-  endSession,
-  fetchSecurity,
-} from '../securityService'
-import { signIn } from '@/features/auth/services/sessionService'
-import { resetNotifications, useNotifications } from '@/features/notifications/composables/useNotifications'
+import { changePassword, endOtherSessions, endSession, fetchSecurity } from '../securityService'
+import { mockApi, problem, route } from '@/test/api'
+import type { ApiSecurityView } from '@/shared/api/contracts'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+const WINDOWS_CHROME =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'
 
-const OLD = 'SenhaSegura!123'
-const NEW = 'OutraSenhaForte#2026'
-const titular = (email: string) => ({ role: 'titular' as const, email })
+function view(sessions = 2): ApiSecurityView {
+  return {
+    passwordSet: true,
+    passwordChangedAt: '2026-06-02T12:00:00.000Z',
+    sessions: Array.from({ length: sessions }, (_, index) => ({
+      id: `sessao-${index}`,
+      familyId: `familia-${index}`,
+      ipAddress: `177.44.12.${index}`,
+      userAgent: WINDOWS_CHROME,
+      createdAt: '2026-09-20T12:00:00.000Z',
+      lastUsedAt: `2026-09-2${index}T12:00:00.000Z`,
+      expiresAt: '2026-09-30T12:00:00.000Z',
+      current: index === 0,
+    })),
+  }
+}
 
 describe('securityService', () => {
-  it('lista as sessões com a atual marcada e a data da última troca de senha', async () => {
-    const security = await fetchSecurity('titular@exemplo.com.br')
+  it('mostra a sessão atual primeiro, com aparelho e origem legíveis', async () => {
+    mockApi([route('GET', '/me/security', view(3))])
 
-    expect(security.sessions).toHaveLength(4)
-    expect(security.sessions.filter((session) => session.current)).toHaveLength(1)
-    expect(Date.parse(security.passwordChangedAt)).toBeLessThan(Date.now())
-  })
+    const security = await fetchSecurity()
 
-  it('recusa a troca sem a senha atual certa', async () => {
-    await expect(
-      changePassword(titular('troca1@exemplo.com.br'), { current: 'errada', next: NEW }),
-    ).rejects.toMatchObject({ refusal: 'senha-incorreta' })
-  })
-
-  it('recusa senha nova fraca ou igual à atual', async () => {
-    const account = titular('troca2@exemplo.com.br')
-
-    await expect(changePassword(account, { current: OLD, next: 'curta' })).rejects.toMatchObject({
-      refusal: 'senha-fraca',
+    expect(security.sessions[0]).toMatchObject({
+      current: true,
+      device: 'Chrome em Windows',
+      origin: '177.44.12.0',
     })
-    await expect(changePassword(account, { current: OLD, next: OLD })).rejects.toMatchObject({
-      refusal: 'senha-repetida',
-    })
+    expect(security.sessions.slice(1).map((session) => session.id)).toEqual(['sessao-2', 'sessao-1'])
   })
 
-  it('troca a senha, encerra as outras sessões e avisa a conta', async () => {
-    resetNotifications()
-    const account = titular('titular@exemplo.com.br')
+  it('troca a senha e conta as sessões encerradas', async () => {
+    const { calls } = mockApi([
+      route('PUT', '/me/password', { revokedSessions: 1 }),
+      route('GET', '/me/security', view(1)),
+    ])
 
-    const result = await changePassword(account, { current: OLD, next: NEW })
+    const result = await changePassword({ current: 'Atual-Senha-1!', next: 'Nova-Senha-Forte9!' })
 
-    expect(result.endedSessions).toBe(3)
+    expect(result.endedSessions).toBe(1)
     expect(result.sessions).toHaveLength(1)
-    expect(result.sessions[0]?.current).toBe(true)
-    expect(currentPasswordOf('titular@exemplo.com.br')).toBe(NEW)
-    expect(useNotifications(account).notifications.value[0]).toMatchObject({
-      type: 'Segurança da conta',
-      title: 'Sua senha foi alterada',
+    expect(calls[0]!.body).toEqual({
+      currentPassword: 'Atual-Senha-1!',
+      password: 'Nova-Senha-Forte9!',
+      passwordConfirmation: 'Nova-Senha-Forte9!',
     })
   })
 
-  it('a senha nova passa a valer no acesso, e a antiga deixa de valer', async () => {
-    await expect(signIn({ email: 'titular@exemplo.com.br', password: NEW })).resolves.toBeDefined()
-    await expect(signIn({ email: 'titular@exemplo.com.br', password: OLD })).rejects.toMatchObject({
-      reason: 'credenciais-invalidas',
+  it('repassa a recusa da senha atual', async () => {
+    mockApi([route('PUT', '/me/password', problem(400, 'A senha atual não confere.'))])
+
+    await expect(changePassword({ current: 'errada', next: 'Nova-Senha-Forte9!' })).rejects.toMatchObject({
+      detail: 'A senha atual não confere.',
     })
   })
 
-  it('encerra uma sessão de outro aparelho, mas não a atual', async () => {
-    const account = titular('sessoes@exemplo.com.br')
-    const { sessions } = await fetchSecurity(account.email)
-    const other = sessions.find((session) => !session.current)!
-    const current = sessions.find((session) => session.current)!
+  it('encerra uma sessão ou todas as outras', async () => {
+    const { calls } = mockApi([
+      route('DELETE', '/me/sessions/sessao-1', { status: 204 }),
+      route('DELETE', '/me/sessions', { revokedSessions: 2 }),
+      route('GET', '/me/security', view(1)),
+    ])
 
-    const after = await endSession(account, other.id)
-    expect(after.sessions.map((session) => session.id)).not.toContain(other.id)
+    await endSession('sessao-1')
+    const result = await endOtherSessions()
 
-    await expect(endSession(account, current.id)).rejects.toBeInstanceOf(SecurityError)
-  })
-
-  it('encerra todas as outras de uma vez', async () => {
-    const result = await endOtherSessions(titular('todas@exemplo.com.br'))
-
-    expect(result.endedSessions).toBe(3)
-    expect(result.sessions.every((session) => session.current)).toBe(true)
+    expect(result.endedSessions).toBe(2)
+    expect(calls.filter((call) => call.method === 'DELETE').map((call) => call.path)).toEqual([
+      '/me/sessions/sessao-1',
+      '/me/sessions',
+    ])
   })
 })

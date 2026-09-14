@@ -6,7 +6,11 @@ import AccountPanel from '@/shared/layout/AccountPanel.vue'
 import BaseLogo from '@/shared/ui/BaseLogo.vue'
 import NotificationsPanel from '@/shared/layout/NotificationsPanel.vue'
 import { endSession } from '@/features/auth/composables/useSession'
-import { useNotifications } from '@/features/notifications/composables/useNotifications'
+import { signOut as signOutOfApi } from '@/features/auth/services/sessionService'
+import {
+  resetNotifications,
+  useNotifications,
+} from '@/features/notifications/composables/useNotifications'
 import type { Account } from '@/features/auth/types/auth'
 import type { AppNotification } from '@/features/notifications/types/notification'
 import type { AppArea } from '@/shared/layout/types'
@@ -32,17 +36,28 @@ const header = useTemplateRef<HTMLElement>('header')
 const route = useRoute()
 const router = useRouter()
 
-const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications(account)
+const { notifications, unreadCount, markAllAsRead, open: openTarget, load } = useNotifications()
+
+// A lista do painel vem com a sessão; sem ninguém autenticado não há caixa.
+watch(
+  () => account.id,
+  (id) => {
+    if (id) void load().catch(() => {})
+  },
+  { immediate: true },
+)
 
 /**
  * Acionar um aviso marca como lido e leva ao recurso. Se o recurso não existe
  * mais, a página de notificações abre com a explicação no lugar do link morto.
  */
 async function openNotification(notification: AppNotification) {
-  markAsRead(notification.id)
   open.value = 'none'
+  const destination = await openTarget(notification, account.role).catch(() => null)
   await router.push(
-    notification.target ?? { name: 'notifications', query: { aviso: notification.id } },
+    destination?.kind === 'rota'
+      ? destination.to
+      : { name: 'notifications', query: { aviso: notification.id } },
   )
 }
 
@@ -71,7 +86,9 @@ onScopeDispose(() => {
 watch(() => route.fullPath, () => { open.value = 'none' })
 
 async function signOut() {
+  await signOutOfApi()
   endSession()
+  resetNotifications()
   await router.push({ name: 'login' })
 }
 

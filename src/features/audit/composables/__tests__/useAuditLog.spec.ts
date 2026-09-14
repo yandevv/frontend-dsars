@@ -2,9 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises } from '@vue/test-utils'
 
 import { useAuditLog } from '../useAuditLog'
-import { resetAudit } from '@/features/audit/services/auditService'
+import { recordAccountEvent, resetAudit } from '@/features/audit/services/auditService'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+vi.mock('@/features/requests/services/requestService', async () => {
+  const { titularRequests } = await import('@/test/factories')
+  return { listOrganizationRequests: () => Promise.resolve(titularRequests()) }
+})
 
 const route: { query: Record<string, string> } = { query: {} }
 const replace = vi.fn<(to: unknown) => Promise<void>>(() => Promise.resolve())
@@ -25,6 +28,15 @@ describe('useAuditLog', () => {
   beforeEach(() => {
     resetAudit()
     replace.mockClear()
+    recordAccountEvent(
+      { email: 'marina@exemplo.com.br', name: 'Marina Torres de Almeida', role: 'titular' },
+      {
+        operation: 'negado',
+        action: 'Tentativa de acesso à área do encarregado',
+        detail: 'Recusada pelo servidor.',
+        resource: { kind: 'area-restrita', label: 'Área do encarregado' },
+      },
+    )
   })
 
   it('filtra por tipo de operação e leva o recorte para a URL', async () => {

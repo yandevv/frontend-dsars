@@ -12,7 +12,7 @@ export const SURVEY_RATINGS: readonly { value: number; label: string }[] = [
   { value: 5, label: 'Muito satisfatório' },
 ]
 
-export const SURVEY_COMMENT_MAX_LENGTH = 600
+export const SURVEY_COMMENT_MAX_LENGTH = 1000
 
 export function ratingLabel(value: number): string {
   return SURVEY_RATINGS.find((rating) => rating.value === value)?.label ?? ''

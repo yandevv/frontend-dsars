@@ -4,17 +4,12 @@ import { useRouter } from 'vue-router'
 
 import AppShell from '@/shared/layout/AppShell.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
-import BaseDialog from '@/shared/ui/BaseDialog.vue'
 import InviteMemberDialog from '@/features/team/components/InviteMemberDialog.vue'
 import PermissionsTable from '@/features/team/components/PermissionsTable.vue'
 import TeamInvitesList from '@/features/team/components/TeamInvitesList.vue'
 import TeamMembersList from '@/features/team/components/TeamMembersList.vue'
-import {
-  fetchTeam,
-  inviteStatus,
-  resendInvite,
-  revokeMemberInvite,
-} from '@/features/team/services/teamService'
+import { fetchTeam, inviteStatus, resendInvite } from '@/features/team/services/teamService'
+import { messageOf } from '@/shared/api/ApiError'
 import { useSession } from '@/features/auth/composables/useSession'
 import type { Invite } from '@/features/auth/types/invite'
 import type { TeamMemberWorkload } from '@/features/team/types/team'
@@ -37,14 +32,6 @@ const notice = ref('')
 const busyToken = ref<string>()
 
 const inviteOpen = ref(false)
-const revoking = ref<Invite | null>(null)
-const revokeOpen = computed({
-  get: () => revoking.value !== null,
-  set: (value) => {
-    if (!value) revoking.value = null
-  },
-})
-const revokeBusy = ref(false)
 
 async function load() {
   const team = await fetchTeam()
@@ -79,26 +66,14 @@ async function onInvited(invite: Invite) {
   await load()
 }
 
-async function confirmRevoke() {
-  const invite = revoking.value
-  if (!invite) return
-  revokeBusy.value = true
-  try {
-    await revokeMemberInvite(invite, account.value)
-    notice.value = `Convite para ${invite.email} revogado. O link deixou de funcionar.`
-    revoking.value = null
-    await load()
-  } finally {
-    revokeBusy.value = false
-  }
-}
-
 async function resend(invite: Invite) {
-  busyToken.value = invite.token
+  busyToken.value = invite.email
   try {
     const renewed = await resendInvite(invite, account.value)
-    notice.value = `Novo convite enviado para ${renewed.email}.`
+    notice.value = `Novo convite enviado para ${renewed.email}. O anterior deixou de valer.`
     await load()
+  } catch (error) {
+    notice.value = messageOf(error)
   } finally {
     busyToken.value = undefined
   }
@@ -171,6 +146,10 @@ async function resend(invite: Invite) {
               {{ members.length }} com perfil de encarregado
             </p>
           </div>
+          <p class="text-sm leading-relaxed text-ink-soft">
+            A lista de pessoas e convites ainda é ilustrativa: a plataforma envia convites de
+            verdade, mas ainda não oferece a consulta da equipe.
+          </p>
           <TeamMembersList :members="members" />
         </section>
 
@@ -200,7 +179,6 @@ async function resend(invite: Invite) {
             :invites="invites"
             :busy-token="busyToken"
             @copy="copy"
-            @revoke="revoking = $event"
             @resend="resend"
           />
         </section>
@@ -231,38 +209,7 @@ async function resend(invite: Invite) {
     <InviteMemberDialog
       v-model:open="inviteOpen"
       :by="account"
-      :link-of="linkOf"
       @invited="onInvited"
-      @copy="copy"
     />
-
-    <BaseDialog
-      v-model:open="revokeOpen"
-      title="Revogar o convite?"
-      tone="danger"
-      width="sm"
-      :locked="revokeBusy"
-    >
-      <p class="text-[15px] leading-relaxed text-ink-body">
-        O link enviado para <span class="font-semibold">{{ revoking?.email }}</span> deixa de
-        funcionar agora. Para convidar a mesma pessoa depois, será preciso enviar um novo convite.
-      </p>
-      <template #actions>
-        <BaseButton
-          variant="secondary"
-          :disabled="revokeBusy"
-          @click="revoking = null"
-        >
-          Manter o convite
-        </BaseButton>
-        <BaseButton
-          variant="danger"
-          :busy="revokeBusy"
-          @click="confirmRevoke"
-        >
-          Revogar convite
-        </BaseButton>
-      </template>
-    </BaseDialog>
   </AppShell>
 </template>

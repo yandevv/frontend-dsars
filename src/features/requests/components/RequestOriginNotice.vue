@@ -16,7 +16,8 @@ const { request } = defineProps<{ request: DataRequest & { origin: RequestOrigin
 
 const text = computed(() => {
   const { origin } = request
-  return `Recebido ${findOriginChannel(origin.channel).phrase} em ${formatDate(origin.receivedAt)} e registrado por ${origin.registeredBy} em ${formatDate(request.registeredAt)}. Se você não reconhece este pedido, avise a encarregada.`
+  const reference = origin.reference ? ` (${origin.reference})` : ''
+  return `Recebido ${findOriginChannel(origin.channel).phrase}${reference} e registrado pela encarregada em ${formatDate(request.registeredAt)}. Se você não reconhece este pedido, avise a encarregada.`
 })
 </script>
 

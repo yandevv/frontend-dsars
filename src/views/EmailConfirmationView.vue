@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { RouterLink, useRoute, useRouter } from "vue-router";
+import { RouterLink, useRoute } from "vue-router";
 
 import AuthChrome from "@/features/auth/components/AuthChrome.vue";
 import BaseButton from "@/shared/ui/BaseButton.vue";
@@ -11,12 +11,13 @@ import {
 import {
   ConfirmationError,
   confirmEmail,
+  confirmEmailChange,
   lastConfirmationSentAt,
   resendConfirmation,
   type ConfirmationOrigin,
   type ConfirmationResult,
 } from "@/features/auth/services/emailConfirmationService";
-import { formatDateTime } from "@/shared/utils/date";
+import { reloadSession, useSession } from "@/features/auth/composables/useSession";
 import { useResendCountdown } from "@/features/auth/composables/useResendCountdown";
 import { useTenant } from "@/features/tenant/composables/useTenant";
 
@@ -30,11 +31,17 @@ import { useTenant } from "@/features/tenant/composables/useTenant";
  */
 const { tenant } = useTenant();
 const route = useRoute();
-const router = useRouter();
 
-const token = computed(() =>
-  typeof route.params.token === "string" ? route.params.token : "",
-);
+const { account } = useSession();
+
+/** O link do e-mail traz a ficha na query; a forma antiga, no caminho. */
+const token = computed(() => {
+  if (typeof route.params.token === "string") return route.params.token;
+  return typeof route.query.token === "string" ? route.query.token : "";
+});
+
+/** A troca de e-mail chega por outra rota, com a sessão da própria conta. */
+const isEmailChange = computed(() => route.name === "email-change-confirmation");
 
 // ── Espera ───────────────────────────────────────────────────────────────────
 const origin = computed<ConfirmationOrigin>(() =>
@@ -85,11 +92,9 @@ async function resend() {
 type LinkState =
   | { status: "validando" }
   | { status: "confirmado"; result: ConfirmationResult }
-  | { status: "expirado"; email?: string; sentAt?: string }
   | { status: "invalido" };
 
 const link = ref<LinkState>({ status: "validando" });
-const renewing = ref(false);
 
 watch(
   token,
@@ -97,33 +102,25 @@ watch(
     if (!value) return;
     link.value = { status: "validando" };
     try {
-      link.value = { status: "confirmado", result: await confirmEmail(value) };
-    } catch (error) {
-      if (error instanceof ConfirmationError && error.reason === "expirado") {
-        link.value = { status: "expirado", ...error.detail };
+      if (isEmailChange.value) {
+        const previous = account.value.email;
+        const result = await confirmEmailChange(value);
+        link.value = {
+          status: "confirmado",
+          result: result.kind === "troca" ? { ...result, previous } : result,
+        };
+        // O endereço da sessão mudou: o cabeçalho e as configurações releem o perfil.
+        await reloadSession();
       } else {
-        link.value = { status: "invalido" };
+        link.value = { status: "confirmado", result: await confirmEmail(value) };
+        await reloadSession();
       }
+    } catch {
+      link.value = { status: "invalido" };
     }
   },
   { immediate: true },
 );
-
-/** O link venceu: pede outro e volta à espera, já com o endereço preenchido. */
-async function renew(address: string) {
-  renewing.value = true;
-  try {
-    await resendConfirmation(address).catch((error: unknown) => {
-      if (!(error instanceof ConfirmationError && error.reason === "intervalo")) throw error;
-    });
-    await router.replace({
-      name: "email-confirmation",
-      query: { origem: "cadastro", email: address },
-    });
-  } finally {
-    renewing.value = false;
-  }
-}
 </script>
 
 <template>
@@ -287,8 +284,8 @@ async function renew(address: string) {
                 E-mail confirmado. Conta ativada.
               </h1>
               <p class="text-[15px] leading-relaxed text-ink-body">
-                O endereço <strong class="break-all">{{ link.result.email }}</strong> agora está
-                validado. Você já pode registrar requisições e acompanhar os prazos de resposta.
+                O endereço agora está validado. Você já pode registrar requisições e acompanhar
+                os prazos de resposta.
               </p>
             </template>
             <template v-else>
@@ -302,7 +299,7 @@ async function renew(address: string) {
                     {{ link.result.email }}
                   </dd>
                 </div>
-                <div class="flex flex-col gap-0.5">
+                <div v-if="link.result.previous" class="flex flex-col gap-0.5">
                   <dt class="text-[13px] text-ink-muted">Substitui</dt>
                   <dd class="break-all text-base text-ink-soft line-through">
                     {{ link.result.previous }}
@@ -320,7 +317,7 @@ async function renew(address: string) {
             v-if="link.result.kind === 'cadastro'"
             class="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap"
           >
-            <BaseButton :to="{ name: 'login', query: { email: link.result.email } }">
+            <BaseButton :to="{ name: 'login' }">
               Entrar no portal
             </BaseButton>
             <BaseButton variant="secondary" :to="{ name: 'new-request' }">
@@ -330,36 +327,6 @@ async function renew(address: string) {
           <BaseButton v-else :to="{ name: 'personal-data' }" block>Voltar aos dados pessoais</BaseButton>
         </template>
 
-        <!-- ── Vencido ─────────────────────────────────────────────────── -->
-        <template v-else-if="link.status === 'expirado'">
-          <div class="flex flex-col gap-3 border-l-[3px] border-warning bg-warning-wash px-5 py-[22px]">
-            <h1 class="font-serif text-[26px] font-semibold leading-tight text-ink">
-              Este link venceu
-            </h1>
-            <p class="text-[15px] leading-relaxed text-ink-body">
-              Links de confirmação valem {{ CONFIRMATION_LINK_HOURS }} horas<template
-                v-if="link.sentAt"
-              >
-                — este foi enviado em {{ formatDateTime(link.sentAt) }}</template
-              >. Nada foi perdido: pedimos outro e o cadastro continua de onde estava.
-            </p>
-          </div>
-          <div v-if="link.email" class="flex flex-col gap-2.5">
-            <p class="text-sm font-semibold text-ink">Reenviar para</p>
-            <div
-              class="flex flex-wrap items-center justify-between gap-3 border border-line bg-surface-muted px-3.5 py-3"
-            >
-              <span class="break-all text-[15px] text-ink-body">{{ link.email }}</span>
-              <RouterLink :to="{ name: 'register' }" class="text-sm font-medium text-brand">
-                Usar outro endereço
-              </RouterLink>
-            </div>
-          </div>
-          <BaseButton v-if="link.email" block :busy="renewing" @click="renew(link.email)">
-            {{ renewing ? "Enviando…" : "Enviar novo link" }}
-          </BaseButton>
-        </template>
-
         <!-- ── Inválido ou já usado ────────────────────────────────────── -->
         <template v-else>
           <div class="flex flex-col gap-3 border-l-[3px] border-ink-muted bg-field-disabled px-5 py-[22px]">
@@ -367,9 +334,10 @@ async function renew(address: string) {
               Não conseguimos usar este link
             </h1>
             <p class="text-[15px] leading-relaxed text-ink-body">
-              Ele pode já ter sido usado, ter sido copiado pela metade ou ter sido substituído por
-              um envio mais recente. Entre na sua conta: se o e-mail já estiver confirmado, nada
-              mais é preciso.
+              Ele pode já ter sido usado, ter vencido — links de confirmação valem
+              {{ CONFIRMATION_LINK_HOURS }} horas —, ter sido copiado pela metade ou ter sido
+              substituído por um envio mais recente. Entre na sua conta: se o e-mail já estiver
+              confirmado, nada mais é preciso.
             </p>
           </div>
           <div class="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">

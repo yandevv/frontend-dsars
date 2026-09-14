@@ -16,3 +16,15 @@ export function downloadText(filename: string, content: string, type = 'text/csv
 
   URL.revokeObjectURL(url)
 }
+
+/** Entrega um arquivo que já veio pronto do servidor. */
+export function downloadBlob(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = filename
+  link.click()
+
+  URL.revokeObjectURL(url)
+}

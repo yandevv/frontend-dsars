@@ -1,62 +1,36 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import { dueFromReceived, isFutureDay } from '@/features/requests/utils/onBehalf'
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
-import { deadlinePhrase, formatDue } from '@/features/requests/utils/responseDeadline'
-import { daysUntil } from '@/shared/utils/date'
+import {
+  deadlineFrom,
+  deadlinePhrase,
+  formatDue,
+} from '@/features/requests/utils/responseDeadline'
 
 /**
- * Coluna de apoio do registro por terceiro.
- *
- * O prazo muda enquanto a data de recebimento muda: é aqui que a encarregada
- * vê, antes de registrar, que uma carta antiga já chega à fila vencida.
+ * Coluna de apoio do registro por terceiro: o prazo que o pedido terá, quem
+ * está registrando e o que acontece ao registrar.
  */
-const { receivedOn, author, immediate } = defineProps<{
-  /** Dia do recebimento, no formato do campo de data. */
-  receivedOn: string
+const { author, immediate } = defineProps<{
   author: string
-  /** Resposta em até 24 horas do recebimento, em vez dos 15 dias. */
+  /** Resposta em até 24 horas do registro, em vez dos 15 dias. */
   immediate: boolean
 }>()
 
-const valid = computed(() => receivedOn !== '' && !isFutureDay(receivedOn))
+const dueAt = computed(() => deadlineFrom(new Date().toISOString(), immediate))
 
-/** Dias desde que o pedido chegou — 0 quando chegou hoje. */
-const elapsed = computed(() =>
-  valid.value ? -daysUntil(new Date(`${receivedOn}T12:00:00`).toISOString()) : 0,
+const title = computed(() => `${deadlinePhrase(immediate)} · até ${formatDue(dueAt.value, immediate)}`)
+
+const text = computed(() =>
+  immediate
+    ? 'Pedido de resposta imediata: são 24 horas contadas do registro.'
+    : 'O prazo legal conta a partir do registro. Registre o pedido assim que ele chegar.',
 )
-
-const dueAt = computed(() => (valid.value ? dueFromReceived(receivedOn, immediate) : ''))
-
-const overdue = computed(() => valid.value && new Date(dueAt.value).getTime() < Date.now())
-
-const title = computed(() =>
-  valid.value
-    ? `${deadlinePhrase(immediate)} · até ${formatDue(dueAt.value, immediate)}`
-    : `${deadlinePhrase(immediate)} a contar do recebimento`,
-)
-
-const text = computed(() => {
-  if (!valid.value) return 'Informe uma data de recebimento de hoje ou anterior para calcular o prazo.'
-  if (overdue.value) {
-    const days = elapsed.value === 1 ? '1 dia' : `${elapsed.value} dias`
-    return `O pedido chegou há ${days}: este registro já nasce fora do prazo legal e entra na fila marcado como vencido.`
-  }
-  if (immediate) {
-    return 'Pedido de resposta imediata: são 24 horas contadas do recebimento, e não do registro.'
-  }
-  if (elapsed.value > 0) {
-    const left = LEGAL_DEADLINE_DAYS - elapsed.value
-    return `O pedido chegou há ${elapsed.value} ${elapsed.value === 1 ? 'dia' : 'dias'}. ${left === 0 ? 'O prazo vence hoje' : `Restam ${left} ${left === 1 ? 'dia' : 'dias'} do prazo legal`}, contado do recebimento e não do registro.`
-  }
-  return 'O pedido chegou hoje: o prazo legal conta a partir de agora.'
-})
 
 const steps = [
-  'O sistema gera protocolo e identificador únicos e conta o prazo desde a data de recebimento.',
-  'Se o titular tiver conta, a requisição aparece na lista dele com aviso de que foi registrada pela encarregada.',
-  'A requisição entra na fila de atendimento com você como responsável.',
+  'O sistema gera protocolo e identificador únicos e começa a contar o prazo.',
+  'A requisição aparece na lista do titular, com aviso de que foi registrada pela encarregada.',
+  'A requisição entra na fila de atendimento da organização.',
 ]
 </script>
 
@@ -66,15 +40,14 @@ const steps = [
   >
     <section
       class="flex flex-col gap-2.5"
-      :class="overdue ? 'border-l-[3px] border-danger pl-4' : ''"
+      
       aria-live="polite"
     >
       <h2 class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft">
         Prazo desta requisição
       </h2>
       <p
-        class="font-serif text-2xl font-semibold leading-tight"
-        :class="overdue ? 'text-danger' : 'text-ink'"
+        class="font-serif text-2xl font-semibold leading-tight text-ink"
       >
         {{ title }}
       </p>
@@ -91,7 +64,7 @@ const steps = [
         {{ author }}
       </p>
       <p class="text-sm leading-normal text-ink-soft">
-        Encarregada de proteção de dados
+        Encarregado de proteção de dados
       </p>
       <p class="text-sm leading-relaxed text-ink-body">
         A requisição nasce marcada como registro por terceiro: seu usuário aparece na trilha de

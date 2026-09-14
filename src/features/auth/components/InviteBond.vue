@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import { formatDate } from '@/shared/utils/date'
-import type { Invite } from '@/features/auth/types/invite'
+import type { InvitePreview } from '@/features/auth/types/invite'
 import type { Tenant } from '@/features/tenant/types/tenant'
 
 /**
@@ -12,11 +12,10 @@ import type { Tenant } from '@/features/tenant/types/tenant'
  * uma organização, e isso precisa estar na tela — não escondido no link.
  */
 const { invite, tenant } = defineProps<{
-  invite: Invite
+  invite: InvitePreview
   tenant: Tenant
 }>()
 
-const issuedAt = computed(() => formatDate(invite.issuedAt))
 const expiresAt = computed(() => formatDate(invite.expiresAt))
 </script>
 
@@ -37,7 +36,7 @@ const expiresAt = computed(() => formatDate(invite.expiresAt))
         Organização controladora
       </p>
       <p class="font-serif text-[22px] font-semibold text-ink">
-        {{ tenant.name }}
+        {{ invite.organizationName }}
       </p>
       <p class="text-sm text-ink-soft">
         CNPJ {{ tenant.registrationId }}
@@ -50,18 +49,6 @@ const expiresAt = computed(() => formatDate(invite.expiresAt))
       </p>
       <p class="text-[17px] font-semibold text-ink">
         Encarregado de proteção de dados
-      </p>
-    </div>
-
-    <div class="flex flex-col gap-0.5 border-t border-line pt-3.5">
-      <p class="text-[13px] text-ink-muted">
-        Convite enviado por
-      </p>
-      <p class="text-[17px] font-semibold text-ink">
-        {{ invite.invitedBy }}
-      </p>
-      <p class="text-sm text-ink-soft">
-        {{ invite.invitedByRole }} · {{ issuedAt }}
       </p>
     </div>
 

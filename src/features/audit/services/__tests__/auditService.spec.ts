@@ -1,38 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import * as auditService from '../auditService'
-import { DEMO_REQUESTS } from '@/features/requests/data/requests'
-import { savePreferences } from '@/features/settings/services/notificationPreferencesService'
-import { defaultPreferences } from '@/features/settings/constants/notificationEvents'
+import { titularRequests } from '@/test/factories'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+vi.mock('@/features/requests/services/requestService', async () => {
+  const { titularRequests: requests } = await import('@/test/factories')
+  return { listOrganizationRequests: () => Promise.resolve(requests()) }
+})
 
-const { listAuditEntries, recordAccountEvent, resetAudit } = auditService
+const { fromRequest, listAuditEntries, recordAccountEvent, resetAudit } = auditService
 
 describe('auditService', () => {
   beforeEach(() => resetAudit())
 
-  it('junta o histórico de todas as requisições aos eventos de conta', async () => {
+  it('registra a criação de cada requisição e o encerramento das que saíram da fila', async () => {
     const entries = await listAuditEntries()
-    const timelineSize = DEMO_REQUESTS.reduce((sum, request) => sum + request.timeline.length, 0)
 
-    expect(entries.filter((entry) => entry.resource.kind === 'requisicao').length).toBeGreaterThanOrEqual(
-      timelineSize,
-    )
-    expect(entries.some((entry) => entry.operation === 'negado')).toBe(true)
+    expect(entries.filter((entry) => entry.operation === 'criacao')).toHaveLength(5)
+    expect(entries.map((entry) => entry.action)).toContain('Atendimento finalizado')
+    expect(entries.map((entry) => entry.action)).toContain('Requisição cancelada pelo titular')
   })
 
-  it('liga o registro à requisição e identifica o titular pelo nome', async () => {
-    const request = DEMO_REQUESTS.find((item) => item.protocol === '2026-000418')!
-    const entries = await listAuditEntries()
-    const created = entries.find(
-      (entry) => entry.resource.requestId === request.id && entry.operation === 'criacao',
-    )!
+  it('liga o registro à requisição e identifica o titular pelo nome', () => {
+    const request = titularRequests()[0]!
+    const [created] = fromRequest(request)
 
-    expect(created.resource.label).toBe('2026-000418')
-    expect(created.actor).toBe(request.subject.name)
-    expect(created.actorRole).toBe('titular')
-    expect(created.origin).toBe('Portal do titular')
+    expect(created).toMatchObject({
+      operation: 'criacao',
+      actor: request.subject.name,
+      actorRole: 'titular',
+      origin: 'Portal do titular',
+      resource: { kind: 'requisicao', label: '2026-000418', requestId: request.id },
+    })
   })
 
   it('ordena do mais recente para o mais antigo', async () => {
@@ -42,26 +41,19 @@ describe('auditService', () => {
     expect(times).toEqual([...times].sort().reverse())
   })
 
-  it('acrescenta eventos de conta com o nome de quem agiu', async () => {
+  it('acrescenta os eventos da sessão com o nome de quem agiu', async () => {
     recordAccountEvent(
-      { email: 'titular@exemplo.com.br' },
-      { operation: 'alteracao', action: 'Telefone alterado', detail: 'Teste.' },
+      { email: 'helena@meridiano.org.br', name: 'Helena Prado Vasconcelos', role: 'encarregado' },
+      { operation: 'exportacao', action: 'Fila de atendimento exportada', detail: 'Teste.' },
     )
 
     const [latest] = await listAuditEntries()
     expect(latest).toMatchObject({
-      actor: 'Marina Torres de Almeida',
-      actorRole: 'titular',
-      action: 'Telefone alterado',
-      resource: { kind: 'conta', label: 'Conta de Marina Torres de Almeida' },
+      actor: 'Helena Prado Vasconcelos',
+      actorRole: 'encarregado',
+      action: 'Fila de atendimento exportada',
+      origin: 'Área do encarregado',
     })
-  })
-
-  it('registra a troca de preferências feita nas configurações', async () => {
-    await savePreferences('titular@exemplo.com.br', defaultPreferences())
-
-    const [latest] = await listAuditEntries()
-    expect(latest!.action).toBe('Preferências de notificação alteradas')
   })
 
   it('não oferece como editar nem excluir um registro', () => {

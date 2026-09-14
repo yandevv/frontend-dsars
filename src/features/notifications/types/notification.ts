@@ -16,14 +16,17 @@ export interface AppNotification {
   detail: string
   /** Quando aconteceu, em ISO; o texto "Hoje, 07:00" é derivado dele. */
   at: string
-  /** A que se refere, para a linha de apoio — "Protocolo 2026-000418". */
+  /** A que se refere, para a linha de apoio. */
   reference?: string
-  /** Para onde o aviso leva ao ser acionado. Ausente quando o recurso sumiu. */
-  target?: RouteLocationRaw
+  /** O aviso aponta para algum recurso — requisição, conta, convite. */
+  hasTarget: boolean
   /** Por que o recurso não está mais disponível — explicado no lugar do link morto. */
   unavailableReason?: string
   unread: boolean
 }
 
-/** O que um serviço informa ao registrar um aviso novo; o resto é preenchido na entrada. */
-export type NewNotification = Omit<AppNotification, 'id' | 'at' | 'unread'>
+/** Onde abrir o aviso: a rota do recurso, ou nada quando ele sumiu. */
+export type NotificationDestination =
+  | { kind: 'rota'; to: RouteLocationRaw }
+  | { kind: 'indisponivel'; reason: string }
+  | { kind: 'nenhum' }

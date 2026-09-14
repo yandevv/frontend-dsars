@@ -2,8 +2,8 @@ import { computed, onMounted, ref, toValue, watch, type MaybeRefOrGetter } from 
 
 import { deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { isOpen } from '@/features/requests/constants/requestStatus'
-import { listRequests } from '@/features/requests/services/requestService'
-import { normalizeEmail } from '@/features/auth/data/accounts'
+import { listMyRequests } from '@/features/requests/services/requestService'
+import { messageOf } from '@/shared/api/ApiError'
 import type { DataRequest, DeadlineStatus } from '@/features/requests/types/request'
 
 /** Os quatro números da faixa acima da lista. */
@@ -12,18 +12,6 @@ export interface MyRequestsCounts {
   dueSoon: number
   overdue: number
   closed: number
-}
-
-/**
- * Só as requisições que a própria pessoa registrou ou que foram registradas em
- * seu nome.
- *
- * O filtro aqui é conveniência de protótipo: quem garante que ninguém veja o
- * pedido alheio é o servidor, que só devolverá as requisições do token.
- */
-export function ownRequests(requests: readonly DataRequest[], email: string): DataRequest[] {
-  const wanted = normalizeEmail(email)
-  return requests.filter((request) => normalizeEmail(request.subject.email) === wanted)
 }
 
 const URGENCY: Record<DeadlineStatus, number> = {
@@ -69,12 +57,16 @@ export function countMyRequests(
 const selection = ref<string[]>([])
 let selectionOwner = ''
 
-/** A lista do titular: o que é dele, em que ordem e o que está marcado. */
+/**
+ * A lista do titular: em que ordem e o que está marcado. Só vêm as
+ * requisições da própria conta — o servidor não devolve as alheias.
+ */
 export function useMyRequests(email: MaybeRefOrGetter<string>) {
   const all = ref<readonly DataRequest[]>([])
   const loading = ref(true)
+  const error = ref('')
 
-  const requests = computed(() => sortForTitular(ownRequests(all.value, toValue(email))))
+  const requests = computed(() => sortForTitular(all.value))
   const counts = computed(() => countMyRequests(requests.value))
 
   /** Concluídas e canceladas não entram em ação em lote: já estão encerradas. */
@@ -87,8 +79,11 @@ export function useMyRequests(email: MaybeRefOrGetter<string>) {
    */
   async function reload({ quiet = false }: { quiet?: boolean } = {}) {
     if (!quiet) loading.value = true
+    error.value = ''
     try {
-      all.value = [...(await listRequests())]
+      all.value = await listMyRequests()
+    } catch (failure) {
+      error.value = messageOf(failure)
     } finally {
       loading.value = false
     }
@@ -111,5 +106,5 @@ export function useMyRequests(email: MaybeRefOrGetter<string>) {
 
   onMounted(() => reload())
 
-  return { requests, counts, selectable, selected: selection, loading, reload }
+  return { requests, counts, selectable, selected: selection, loading, error, reload }
 }

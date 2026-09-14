@@ -16,9 +16,27 @@ export function isImmediate(rightNumeral: string, accessFormat?: AccessFormat): 
   return rightNumeral === 'I' || (rightNumeral === 'II' && accessFormat === 'simplificado')
 }
 
-/** O pedido já registrado, pelo mesmo critério. */
-export function requestIsImmediate(request: Pick<DataRequest, 'rightNumeral' | 'accessFormat'>) {
-  return isImmediate(request.rightNumeral, request.accessFormat)
+/**
+ * O pedido já registrado: vale o prazo que o servidor calculou, e não uma
+ * nova dedução a partir do direito — é a data dele que está no comprovante.
+ */
+export function requestIsImmediate(request: Pick<DataRequest, 'registeredAt' | 'dueAt'>) {
+  const span = new Date(request.dueAt).getTime() - new Date(request.registeredAt).getTime()
+  return span <= (IMMEDIATE_DEADLINE_HOURS + 1) * 3_600_000
+}
+
+/**
+ * O formato enviado à API. A confirmação de tratamento só tem resposta
+ * imediata no formato simplificado; o acesso usa o formato escolhido; os
+ * demais direitos não têm formato.
+ */
+export function responseFormatFor(
+  rightNumeral: string,
+  accessFormat?: AccessFormat,
+): AccessFormat | undefined {
+  if (rightNumeral === 'I') return 'simplificado'
+  if (needsAccessFormat(rightNumeral)) return accessFormat ?? 'completo'
+  return undefined
 }
 
 /** O vencimento a partir do momento em que o prazo começa a contar. */

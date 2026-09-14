@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import InviteMemberDialog from '../InviteMemberDialog.vue'
-import { resetInvites } from '@/features/auth/services/inviteService'
+import { resetTeam } from '@/features/team/services/teamService'
+import { startSession } from '@/features/auth/composables/useSession'
+import { mockApi, problem, route } from '@/test/api'
 import type { Invite } from '@/features/auth/types/invite'
-
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
 
 async function render() {
   const wrapper = mount(InviteMemberDialog, {
@@ -13,7 +13,6 @@ async function render() {
     props: {
       open: false,
       by: { name: 'Helena Prado Vasconcelos', email: 'helena.vasconcelos@meridianosaude.org.br' },
-      linkOf: (invite: Invite) => `https://portal.test/convite/${invite.token}`,
     },
   })
   await wrapper.setProps({ open: true })
@@ -33,27 +32,47 @@ async function submit(email: string) {
 describe('InviteMemberDialog', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
-    resetInvites()
+    resetTeam()
+    startSession({
+      id: 'conta-helena',
+      name: 'Helena Prado Vasconcelos',
+      email: 'helena.vasconcelos@meridianosaude.org.br',
+      role: 'encarregado',
+      emailConfirmed: true,
+      organizationId: 'org-1',
+    })
   })
 
-  it('só aceita endereço da organização', async () => {
-    const wrapper = await render()
-
-    await submit('fulano@gmail.com')
-
-    expect(body().textContent).toContain('Só endereços @meridianosaude.org.br recebem convite')
-    expect(wrapper.emitted('invited')).toBeUndefined()
-  })
-
-  it('envia e mostra o link do convite para copiar', async () => {
+  it('envia o convite e diz que o link chega por e-mail', async () => {
+    mockApi([
+      route('POST', '/organizations/org-1/invites', {
+        status: 202,
+        body: { expiresAt: '2026-10-03T12:00:00.000Z' },
+      }),
+    ])
     const wrapper = await render()
 
     await submit('dora.lemos@meridianosaude.org.br')
 
     const [[invite]] = wrapper.emitted('invited') as [[Invite]]
+    expect(invite.email).toBe('dora.lemos@meridianosaude.org.br')
     expect(body().textContent).toContain('Convite enviado')
-    expect(body().querySelector('[data-convite]')!.textContent).toContain(
-      `https://portal.test/convite/${invite.token}`,
-    )
+    expect(body().textContent).toContain('O link nominal chega por e-mail')
+  })
+
+  it('mostra a recusa do servidor no próprio campo', async () => {
+    mockApi([
+      route(
+        'POST',
+        '/organizations/org-1/invites',
+        problem(409, 'Este endereço já responde como encarregado desta organização.'),
+      ),
+    ])
+    const wrapper = await render()
+
+    await submit('dora.lemos@meridianosaude.org.br')
+
+    expect(body().textContent).toContain('já responde como encarregado')
+    expect(wrapper.emitted('invited')).toBeUndefined()
   })
 })

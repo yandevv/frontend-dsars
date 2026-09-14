@@ -2,10 +2,24 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount, RouterLinkStub, flushPromises } from '@vue/test-utils'
 
 import NewRequestForm from '../NewRequestForm.vue'
+import { ApiError } from '@/shared/api/ApiError'
+import { createRequest } from '@/features/requests/services/requestService'
+import type { NewRequest, RequestReceipt } from '@/features/requests/types/request'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+vi.mock('@/features/requests/services/requestService', () => ({
+  createRequest: vi.fn<(input: NewRequest) => Promise<RequestReceipt>>(async (input) => ({
+    protocol: '2026-000200',
+    id: '01920000-0000-7000-8000-000000000200',
+    rightNumeral: input.rightNumeral,
+    registeredAt: new Date().toISOString(),
+    dueAt: new Date().toISOString(),
+    immediate: input.accessFormat === 'simplificado',
+    attachmentCount: input.attachments.length,
+  })),
+}))
 
 const account = {
+  id: 'conta-1',
   name: 'Marina Torres de Almeida',
   email: 'titular@exemplo.com.br',
   role: 'titular' as const,
@@ -111,5 +125,20 @@ describe('NewRequestForm', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(wrapper.emitted('registered')?.[0]?.[0]).toMatchObject({ immediate: true })
+  })
+
+  it('mostra a recusa do servidor sem perder o que foi escrito', async () => {
+    vi.mocked(createRequest).mockRejectedValueOnce(
+      new ApiError(403, { detail: 'Confirme o seu endereço de e-mail para concluir esta operação.' }),
+    )
+    const wrapper = render()
+    await wrapper.setProps({ right: 'VI' })
+    await wrapper.find('textarea').setValue('Peço a eliminação dos meus dados de contato.')
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Confirme o seu endereço de e-mail')
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toContain('eliminação')
   })
 })

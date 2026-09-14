@@ -6,21 +6,19 @@ import BaseButton from "@/shared/ui/BaseButton.vue";
 import BaseDialog from "@/shared/ui/BaseDialog.vue";
 import BaseSwitch from "@/shared/ui/BaseSwitch.vue";
 import SettingsLayout from "@/features/settings/components/SettingsLayout.vue";
-import {
-  NOTIFICATION_CHANNELS,
-  defaultPreferences,
-  eventsFor,
-} from "@/features/settings/constants/notificationEvents";
+import { NOTIFICATION_CHANNELS } from "@/features/settings/constants/notificationEvents";
 import {
   clonePreferences,
+  defaultPreferences,
   fetchPreferences,
   savePreferences,
 } from "@/features/settings/services/notificationPreferencesService";
-import { currentRole, useSession } from "@/features/auth/composables/useSession";
-import { fetchProfile } from "@/features/settings/services/accountSettingsService";
+import { currentRole } from "@/features/auth/composables/useSession";
+import { messageOf } from "@/shared/api/ApiError";
 import type {
   NotificationChannel,
   NotificationPreferences,
+  PreferenceEvent,
 } from "@/features/settings/types/preferences";
 
 /**
@@ -32,37 +30,47 @@ import type {
  * aviso sempre chegará. Nada muda até salvar, e salvar pede confirmação.
  */
 const role = currentRole();
-const { account } = useSession(role);
 
-const events = eventsFor(role);
+const events = ref<PreferenceEvent[]>([]);
 const saved = ref<NotificationPreferences | null>(null);
 const draft = ref<NotificationPreferences | null>(null);
-const hasPhone = ref(true);
 const notice = ref("");
+const loadError = ref("");
+const saveError = ref("");
 const confirmSave = ref(false);
 const saving = ref(false);
 
 onMounted(async () => {
-  const [preferences, profile] = await Promise.all([
-    fetchPreferences(account.value.email),
-    fetchProfile(account.value.email),
-  ]);
-  saved.value = preferences;
-  draft.value = clonePreferences(preferences);
-  hasPhone.value = profile.phone.trim() !== "";
+  try {
+    const matrix = await fetchPreferences();
+    events.value = matrix.events;
+    saved.value = matrix.preferences;
+    draft.value = clonePreferences(matrix.preferences);
+  } catch (error) {
+    loadError.value = messageOf(error);
+  }
 });
 
-function isLocked(eventId: string, channel: NotificationChannel): boolean {
-  return events.find((event) => event.id === eventId)?.locked.includes(channel) ?? false;
+function supports(event: PreferenceEvent, channel: NotificationChannel): boolean {
+  return event.channels[channel] !== undefined;
+}
+
+function isLocked(event: PreferenceEvent, channel: NotificationChannel): boolean {
+  return event.channels[channel]?.mandatory ?? false;
+}
+
+function hasMandatory(event: PreferenceEvent): boolean {
+  return Object.values(event.channels).some((setting) => setting.mandatory);
 }
 
 /** Quantas células mudaram desde o último salvamento. */
 const changes = computed(() => {
   if (!saved.value || !draft.value) return 0;
   let total = 0;
-  for (const event of events) {
+  for (const event of events.value) {
     for (const channel of NOTIFICATION_CHANNELS) {
-      if (saved.value[event.id][channel.id] !== draft.value[event.id][channel.id]) total += 1;
+      if (!supports(event, channel.id)) continue;
+      if (saved.value[event.id]?.[channel.id] !== draft.value[event.id]?.[channel.id]) total += 1;
     }
   }
   return total;
@@ -70,20 +78,26 @@ const changes = computed(() => {
 
 const onCount = computed(() => {
   if (!draft.value) return 0;
-  return events.reduce(
+  return events.value.reduce(
     (sum, event) =>
       sum +
       NOTIFICATION_CHANNELS.filter(
-        (channel) => !isLocked(event.id, channel.id) && draft.value?.[event.id][channel.id],
+        (channel) =>
+          supports(event, channel.id) &&
+          !isLocked(event, channel.id) &&
+          draft.value?.[event.id]?.[channel.id],
       ).length,
     0,
   );
 });
 
 const optionalCount = computed(() =>
-  events.reduce(
+  events.value.reduce(
     (sum, event) =>
-      sum + NOTIFICATION_CHANNELS.filter((channel) => !isLocked(event.id, channel.id)).length,
+      sum +
+      NOTIFICATION_CHANNELS.filter(
+        (channel) => supports(event, channel.id) && !isLocked(event, channel.id),
+      ).length,
     0,
   ),
 );
@@ -96,18 +110,23 @@ const summary = computed(() => {
 });
 
 function restoreDefaults() {
-  draft.value = defaultPreferences();
+  draft.value = defaultPreferences(events.value);
   notice.value = "Padrão do portal aplicado à matriz. Salve para que passe a valer.";
 }
 
 async function save() {
   if (!draft.value || saving.value) return;
   saving.value = true;
+  saveError.value = "";
   try {
-    saved.value = await savePreferences(account.value.email, draft.value);
-    draft.value = clonePreferences(saved.value);
+    const matrix = await savePreferences(events.value, draft.value);
+    events.value = matrix.events;
+    saved.value = matrix.preferences;
+    draft.value = clonePreferences(matrix.preferences);
     confirmSave.value = false;
     notice.value = "Preferências de notificação salvas. A alteração ficou registrada no histórico da conta.";
+  } catch (error) {
+    saveError.value = messageOf(error);
   } finally {
     saving.value = false;
   }
@@ -143,7 +162,8 @@ onBeforeRouteLeave(() => {
       </button>
     </div>
 
-    <p v-if="!draft" role="status" class="text-[15px] text-ink-soft">
+    <p v-if="loadError" role="alert" class="text-[15px] text-danger">{{ loadError }}</p>
+    <p v-else-if="!draft" role="status" class="text-[15px] text-ink-soft">
       Carregando suas preferências…
     </p>
 
@@ -151,7 +171,7 @@ onBeforeRouteLeave(() => {
       <section class="border border-line" aria-label="Avisos por canal">
         <!-- Cabeçalho da matriz: só no computador, onde as colunas cabem. -->
         <div
-          class="hidden border-b border-line bg-surface-muted md:grid md:grid-cols-[minmax(0,1fr)_repeat(3,140px)]"
+          class="hidden border-b border-line bg-surface-muted md:grid md:grid-cols-[minmax(0,1fr)_repeat(2,140px)]"
           aria-hidden="true"
         >
           <div class="flex flex-col gap-0.5 px-[22px] py-4">
@@ -172,23 +192,23 @@ onBeforeRouteLeave(() => {
           <li
             v-for="event in events"
             :key="event.id"
-            class="grid border-b border-line-soft md:grid-cols-[minmax(0,1fr)_repeat(3,140px)]"
-            :class="event.locked.length > 0 ? 'bg-surface-subtle' : 'bg-surface'"
+            class="grid border-b border-line-soft md:grid-cols-[minmax(0,1fr)_repeat(2,140px)]"
+            :class="hasMandatory(event) ? 'bg-surface-subtle' : 'bg-surface'"
           >
             <div class="flex min-w-0 flex-col gap-1 px-5 pb-3 pt-[18px] md:px-[22px] md:pb-[18px]">
               <p class="flex flex-wrap items-center gap-2.5">
                 <span class="text-base font-semibold text-ink">{{ event.label }}</span>
                 <span
-                  v-if="event.locked.length > 0"
+                  v-if="hasMandatory(event)"
                   class="bg-ink-muted px-2 py-1 font-label text-[11px] font-semibold uppercase tracking-[0.06em] text-white"
                 >
                   Obrigatória
                 </span>
               </p>
-              <p class="text-sm leading-relaxed text-ink-soft">{{ event.description[role] }}</p>
+              <p class="text-sm leading-relaxed text-ink-soft">{{ event.description }}</p>
             </div>
 
-            <div class="grid grid-cols-3 gap-2 px-5 pb-[18px] md:contents">
+            <div class="grid grid-cols-2 gap-2 px-5 pb-[18px] md:contents">
               <div
                 v-for="channel in NOTIFICATION_CHANNELS"
                 :key="channel.id"
@@ -199,11 +219,14 @@ onBeforeRouteLeave(() => {
                   {{ channel.label }}
                 </span>
                 <BaseSwitch
-                  v-model="draft[event.id][channel.id]"
+                  v-if="supports(event, channel.id) && draft[event.id]"
+                  v-model="draft[event.id]![channel.id]!"
                   :label="`${channel.label} para ${event.label}`"
-                  :locked="isLocked(event.id, channel.id)"
-                  :disabled="channel.id === 'sms' && !hasPhone"
+                  :locked="isLocked(event, channel.id)"
                 />
+                <span v-else class="text-sm text-ink-faint">
+                  Não se aplica<span class="sr-only"> a {{ event.label }}</span>
+                </span>
               </div>
             </div>
           </li>
@@ -212,12 +235,9 @@ onBeforeRouteLeave(() => {
         <p class="flex gap-3 px-5 py-[18px] text-sm leading-relaxed text-ink-soft md:px-[22px]">
           <span aria-hidden="true" class="w-[3px] shrink-0 self-stretch bg-field-disabled-line" />
           <span>
-            As linhas obrigatórias ficam travadas: transição de estado da requisição e segurança da
+            As linhas obrigatórias ficam travadas: transições de estado da requisição e segurança da
             conta são comunicações legais e de proteção, por isso aparecem visíveis e sem controle
-            em vez de desaparecerem da matriz. O e-mail dessas duas linhas não pode ser desligado.
-            <template v-if="!hasPhone">
-              O SMS fica indisponível enquanto a conta não tiver telefone cadastrado.
-            </template>
+            em vez de desaparecerem da matriz.
           </span>
         </p>
       </section>
@@ -244,8 +264,9 @@ onBeforeRouteLeave(() => {
       <p class="text-[15px] leading-relaxed text-ink-body">
         {{ changes }} {{ changes === 1 ? "canal muda" : "canais mudam" }} de estado. Os avisos
         passam a chegar pelos canais marcados a partir de agora; as comunicações obrigatórias
-        continuam saindo por e-mail.
+        continuam saindo.
       </p>
+      <p v-if="saveError" class="text-[13px] text-danger" role="alert">{{ saveError }}</p>
       <template #note>A alteração fica registrada no histórico da conta.</template>
       <template #actions>
         <BaseButton variant="secondary" :disabled="saving" @click="confirmSave = false">

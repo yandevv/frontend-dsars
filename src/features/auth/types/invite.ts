@@ -31,3 +31,11 @@ export interface InviteAcceptance {
   name: string
   password: string
 }
+
+/** O convite como o link o apresenta, antes de ser aceito. */
+export interface InvitePreview {
+  token: string
+  email: string
+  organizationName: string
+  expiresAt: string
+}

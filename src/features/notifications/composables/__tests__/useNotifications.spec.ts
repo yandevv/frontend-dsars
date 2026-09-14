@@ -1,117 +1,127 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 
-import {
-  TEAM_INBOX,
-  inboxOf,
-  notify,
-  resetNotifications,
-  titularInbox,
-  useNotifications,
-} from '../useNotifications'
-import { DEMO_REQUESTS } from '@/features/requests/data/requests'
-import { answerRequest, cancelRequests, sendMessage } from '@/features/requests/services/requestService'
+import { destinationOf, resetNotifications, toNotification, useNotifications } from '../useNotifications'
+import { mockApi, problem, route } from '@/test/api'
+import { isoFromNow } from '@/test/factories'
+import type { ApiNotification } from '@/shared/api/contracts'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+function apiNotification(overrides: Partial<ApiNotification> = {}): ApiNotification {
+  return {
+    id: 'n1',
+    eventType: 'REQUEST_MESSAGE_RECEIVED',
+    title: 'Nova mensagem na 2026-000101',
+    body: 'Abra a requisição para ler.',
+    resourceType: 'Request',
+    resourceId: 'r1',
+    read: false,
+    readAt: null,
+    createdAt: isoFromNow(-60_000),
+    ...overrides,
+  }
+}
 
-const TITULAR = { role: 'titular' as const, email: 'titular@exemplo.com.br' }
-const TEAM = { role: 'encarregado' as const, email: 'helena.vasconcelos@meridianosaude.org.br' }
-const idOf = (protocol: string) => DEMO_REQUESTS.find((item) => item.protocol === protocol)!.id
+function inbox(items: ApiNotification[], unread = items.filter((item) => !item.read).length) {
+  return [
+    route('GET', '/me/notifications', { items, page: 1, pageSize: 20, total: items.length }),
+    route('GET', '/me/notifications/unread-count', { unreadCount: unread }),
+  ]
+}
 
 beforeEach(() => {
   resetNotifications()
 })
 
 describe('useNotifications', () => {
-  it('separa a caixa de cada titular e compartilha a da equipe', () => {
-    expect(inboxOf(TITULAR)).toBe(titularInbox('Titular@Exemplo.com.br'))
-    expect(inboxOf(TEAM)).toBe(TEAM_INBOX)
-    expect(inboxOf({ role: 'encarregado', email: 'outra@meridianosaude.org.br' })).toBe(TEAM_INBOX)
-
-    expect(useNotifications(TITULAR).notifications.value.length).toBeGreaterThan(0)
-    expect(useNotifications({ role: 'titular', email: 'nova@exemplo.com.br' }).notifications.value).toEqual([])
-  })
-
-  it('mostra as mais recentes primeiro', () => {
-    const { notifications } = useNotifications(TITULAR)
-    const dates = notifications.value.map((item) => item.at)
-
-    expect(dates).toEqual([...dates].sort().reverse())
-  })
-
-  it('marca uma como lida e o contador cai para todos que leem a mesma caixa', () => {
-    const header = useNotifications(TITULAR)
-    const page = useNotifications(TITULAR)
-    const before = header.unreadCount.value
-    const unread = page.notifications.value.find((item) => item.unread)!
-
-    page.markAsRead(unread.id)
-
-    expect(header.unreadCount.value).toBe(before - 1)
-  })
-
-  it('marca todas como lidas só na própria caixa', () => {
-    useNotifications(TITULAR).markAllAsRead()
-
-    expect(useNotifications(TITULAR).unreadCount.value).toBe(0)
-    expect(useNotifications(TEAM).unreadCount.value).toBeGreaterThan(0)
-  })
-
-  it('limpar esvazia só a listagem de quem limpou', () => {
-    useNotifications(TEAM).clear()
-
-    expect(useNotifications(TEAM).notifications.value).toEqual([])
-    expect(useNotifications(TITULAR).notifications.value.length).toBeGreaterThan(0)
-  })
-
-  it('um aviso novo entra no topo, como não lido', () => {
-    notify(TEAM_INBOX, {
-      type: 'Nova requisição',
-      tone: 'neutro',
-      title: 'Aviso de teste',
-      detail: 'Detalhe.',
+  it('traduz o evento da API para o rótulo e o tom da lista', () => {
+    expect(toNotification(apiNotification({ eventType: 'REQUEST_DEADLINE_EXPIRED' }))).toMatchObject({
+      type: 'Prazo vencido',
+      tone: 'alerta',
+      unread: true,
+      hasTarget: true,
     })
-
-    const [first] = useNotifications(TEAM).notifications.value
-    expect(first).toMatchObject({ title: 'Aviso de teste', unread: true })
-  })
-})
-
-describe('avisos que os serviços enviam à outra parte', () => {
-  it('a mensagem da equipe chega ao titular, e a do titular chega à equipe', async () => {
-    const titular = useNotifications(TITULAR)
-    const team = useNotifications(TEAM)
-
-    await sendMessage(idOf('2026-000447'), {
-      text: 'Pode confirmar o endereço?',
-      actor: { name: 'Helena Prado Vasconcelos', role: 'encarregado' },
-    })
-    expect(titular.notifications.value[0]?.title).toContain('A equipe escreveu na requisição 2026-000447')
-
-    await sendMessage(idOf('2026-000447'), {
-      text: 'Confirmo.',
-      actor: { name: 'Marina Torres de Almeida', role: 'titular' },
-    })
-    expect(team.notifications.value[0]?.title).toContain('Nova mensagem do titular na 2026-000447')
   })
 
-  it('a conclusão avisa o titular e manda o convite da pesquisa', async () => {
-    await answerRequest(idOf('2026-000444'), {
-      outcome: 'atendido',
-      text: 'Removemos o consentimento das listas de mensagens.',
-      attachments: [{ name: 'comprovante.pdf', meta: 'PDF' }],
-    })
+  it('carrega a primeira página e o contador de não lidas', async () => {
+    mockApi(inbox([apiNotification(), apiNotification({ id: 'n2', read: true })]))
+    const { notifications, unreadCount, load } = useNotifications()
 
-    const [survey, done] = useNotifications(TITULAR).notifications.value
-    expect(done?.type).toBe('Requisição concluída')
-    expect(survey?.type).toBe('Pesquisa de satisfação')
-    expect(survey?.target).toMatchObject({ query: { pesquisa: '1' } })
+    await load()
+
+    expect(notifications.value).toHaveLength(2)
+    expect(unreadCount.value).toBe(1)
   })
 
-  it('o cancelamento avisa a equipe', async () => {
-    await cancelRequests([idOf('2026-000418')], 'Resolvi direto com a unidade.')
+  it('compartilha o estado entre o cabeçalho e a página', async () => {
+    mockApi([...inbox([apiNotification()]), route('POST', '/me/notifications/read-all', {})])
+    const header = useNotifications()
+    const page = useNotifications()
 
-    expect(useNotifications(TEAM).notifications.value[0]?.title).toBe(
-      'O titular cancelou o protocolo 2026-000418',
-    )
+    await header.load()
+    await page.markAllAsRead()
+
+    expect(header.unreadCount.value).toBe(0)
+    expect(header.notifications.value[0]!.unread).toBe(false)
+  })
+
+  it('limpa a listagem pela API', async () => {
+    const api = mockApi([...inbox([apiNotification()]), route('DELETE', '/me/notifications', {})])
+    const { notifications, load, clear } = useNotifications()
+
+    await load()
+    await clear()
+
+    expect(notifications.value).toEqual([])
+    expect(api.calls.some((call) => call.method === 'DELETE')).toBe(true)
+  })
+
+  it('abre o recurso conforme o perfil de quem está na tela', async () => {
+    mockApi([
+      ...inbox([apiNotification()]),
+      route('POST', '/me/notifications/n1/open', {
+        resourceType: 'Request',
+        resourceId: 'r1',
+        path: '/requisicoes/r1',
+      }),
+    ])
+    const { notifications, load, open, unreadCount } = useNotifications()
+    await load()
+
+    const destination = await open(notifications.value[0]!, 'encarregado')
+
+    expect(destination).toEqual({
+      kind: 'rota',
+      to: { name: 'request-detail', params: { id: 'r1' } },
+    })
+    expect(unreadCount.value).toBe(0)
+  })
+
+  it('explica no próprio aviso quando o recurso não existe mais', async () => {
+    mockApi([
+      ...inbox([apiNotification()]),
+      route('POST', '/me/notifications/n1/open', problem(410, 'Esta requisição não está mais disponível.')),
+    ])
+    const { notifications, load, open } = useNotifications()
+    await load()
+
+    const destination = await open(notifications.value[0]!, 'titular')
+
+    expect(destination).toEqual({
+      kind: 'indisponivel',
+      reason: 'Esta requisição não está mais disponível.',
+    })
+    expect(notifications.value[0]).toMatchObject({
+      unread: false,
+      hasTarget: false,
+      unavailableReason: 'Esta requisição não está mais disponível.',
+    })
+  })
+
+  it('leva os avisos de segurança às configurações', () => {
+    expect(
+      destinationOf({ resourceType: 'User', resourceId: 'conta-1', path: null }, 'titular'),
+    ).toEqual({ kind: 'rota', to: { name: 'security-settings' } })
+    expect(destinationOf({ resourceType: null, resourceId: null, path: null }, 'titular')).toEqual({
+      kind: 'nenhum',
+    })
   })
 })

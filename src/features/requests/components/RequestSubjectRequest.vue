@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import BasePanel from '@/shared/ui/BasePanel.vue'
 import { findRight } from '@/shared/constants/lgpdRights'
-import { formatDate } from '@/shared/utils/date'
 import type { DataRequest } from '@/features/requests/types/request'
 import type { RequestAudience } from '@/features/requests/types/audience'
 
@@ -12,6 +11,8 @@ const { request, audience = 'encarregado' } = defineProps<{
   request: DataRequest
   audience?: RequestAudience
 }>()
+
+defineEmits<{ download: [attachmentId: string] }>()
 </script>
 
 <template>
@@ -46,30 +47,7 @@ const { request, audience = 'encarregado' } = defineProps<{
             Formato do acesso
           </dt>
           <dd class="text-[15px] text-ink">
-            {{ request.accessFormat === 'simplificado' ? 'Simplificado, resposta imediata' : 'Declaração completa' }}
-          </dd>
-        </div>
-        <div
-          v-if="request.origin"
-          class="flex flex-col gap-1"
-        >
-          <dt class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
-            Recebido em
-          </dt>
-          <dd class="text-[15px] text-ink">
-            {{ formatDate(request.origin.receivedAt) }} · registrado por
-            {{ request.origin.registeredBy }}
-          </dd>
-        </div>
-        <div
-          v-if="request.unit"
-          class="flex flex-col gap-1"
-        >
-          <dt class="font-label text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-faint">
-            Unidade relacionada
-          </dt>
-          <dd class="text-[15px] text-ink">
-            {{ request.unit }}
+            {{ request.accessFormat === 'simplificado' ? 'Simplificado, em até 24 horas' : 'Declaração completa' }}
           </dd>
         </div>
       </dl>
@@ -97,8 +75,10 @@ const { request, audience = 'encarregado' } = defineProps<{
             </p>
           </div>
           <button
+            v-if="attachment.id"
             type="button"
             class="text-[15px] font-medium text-brand hover:text-brand-strong"
+            @click="$emit('download', attachment.id)"
           >
             Baixar<span class="sr-only"> {{ attachment.name }}</span>
           </button>

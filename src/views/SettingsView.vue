@@ -3,15 +3,16 @@ import { computed, onMounted, ref } from "vue";
 
 import BaseButton from "@/shared/ui/BaseButton.vue";
 import SettingsLayout from "@/features/settings/components/SettingsLayout.vue";
-import { currentRole, useSession } from "@/features/auth/composables/useSession";
+import { currentRole } from "@/features/auth/composables/useSession";
 import { fetchProfile } from "@/features/settings/services/accountSettingsService";
 import { fetchSecurity } from "@/features/settings/services/securityService";
-import { fetchPreferences } from "@/features/settings/services/notificationPreferencesService";
-import { NOTIFICATION_CHANNELS, eventsFor } from "@/features/settings/constants/notificationEvents";
+import {
+  fetchPreferences,
+  type PreferenceMatrix,
+} from "@/features/settings/services/notificationPreferencesService";
 import { formatDate } from "@/shared/utils/date";
 import type { AccountProfile } from "@/features/settings/types/profile";
 import type { SecurityOverview } from "@/features/settings/types/security";
-import type { NotificationPreferences } from "@/features/settings/types/preferences";
 
 /**
  * Turno 1 · Tela 16 — Configurações da conta (RF015).
@@ -20,34 +21,36 @@ import type { NotificationPreferences } from "@/features/settings/types/preferen
  * de entrar nela. Vale para titular e encarregado — cada um vê a própria conta.
  */
 const role = currentRole();
-const { account } = useSession(role);
 
 const profile = ref<AccountProfile | null>(null);
 const security = ref<SecurityOverview | null>(null);
-const preferences = ref<NotificationPreferences | null>(null);
+const matrix = ref<PreferenceMatrix | null>(null);
 
-onMounted(async () => {
-  [profile.value, security.value, preferences.value] = await Promise.all([
-    fetchProfile(account.value.email),
-    fetchSecurity(account.value.email),
-    fetchPreferences(account.value.email),
-  ]);
+// Cada cartão carrega por conta própria: uma seção fora do ar não apaga as outras.
+onMounted(() => {
+  void fetchProfile().then((value) => (profile.value = value)).catch(() => {});
+  void fetchSecurity().then((value) => (security.value = value)).catch(() => {});
+  void fetchPreferences().then((value) => (matrix.value = value)).catch(() => {});
 });
 
-const events = eventsFor(role);
-const mandatoryCount = events.filter((event) => event.locked.length > 0).length;
+const mandatoryCount = computed(
+  () =>
+    matrix.value?.events.filter((event) =>
+      Object.values(event.channels).some((setting) => setting.mandatory),
+    ).length ?? 0,
+);
 
 /** Avisos opcionais ligados, sobre o total de opcionais — os travados não contam. */
 const optionalSummary = computed(() => {
-  const current = preferences.value;
+  const current = matrix.value;
   if (!current) return "…";
   let on = 0;
   let total = 0;
-  for (const event of events) {
-    for (const channel of NOTIFICATION_CHANNELS) {
-      if (event.locked.includes(channel.id)) continue;
+  for (const event of current.events) {
+    for (const setting of Object.values(event.channels)) {
+      if (setting.mandatory) continue;
       total += 1;
-      if (current[event.id][channel.id]) on += 1;
+      if (setting.enabled) on += 1;
     }
   }
   return `${on} de ${total}`;
@@ -74,7 +77,9 @@ const optionalSummary = computed(() => {
           <dl class="mt-1 flex flex-col gap-1.5">
             <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
               <dt class="text-sm text-ink-muted">Documento</dt>
-              <dd class="text-sm font-medium text-brand">CPF verificado</dd>
+              <dd class="text-sm font-medium" :class="profile?.documentVerified ? 'text-brand' : 'text-ink'">
+                {{ !profile ? "…" : profile.documentVerified ? "Verificado" : profile.documentMasked ? "Informado" : "Não informado" }}
+              </dd>
             </div>
             <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
               <dt class="text-sm text-ink-muted">E-mail</dt>
@@ -105,7 +110,13 @@ const optionalSummary = computed(() => {
             <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">
               <dt class="text-sm text-ink-muted">Senha alterada</dt>
               <dd class="text-sm font-medium text-ink">
-                {{ security ? formatDate(security.passwordChangedAt) : "…" }}
+                {{
+                  !security
+                    ? "…"
+                    : security.passwordChangedAt
+                      ? formatDate(security.passwordChangedAt)
+                      : "Desde o cadastro"
+                }}
               </dd>
             </div>
             <div class="flex items-baseline justify-between gap-3 border-t border-line-soft pt-[7px]">

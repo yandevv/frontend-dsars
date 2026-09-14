@@ -1,111 +1,59 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, useTemplateRef } from 'vue'
-import { RouterLink } from 'vue-router'
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
-import BaseCheckbox from '@/shared/ui/BaseCheckbox.vue'
-import BaseField from '@/shared/ui/BaseField.vue'
-import PasswordStrengthMeter from '@/features/auth/components/PasswordStrengthMeter.vue'
-import { usePasswordPolicy } from '@/features/auth/composables/usePasswordPolicy'
-import { InviteError, acceptInvite } from '@/features/auth/services/inviteService'
-import type { Invite } from '@/features/auth/types/invite'
+import { reloadSession, useSession } from '@/features/auth/composables/useSession'
+import { acceptInvite } from '@/features/auth/services/inviteService'
+import { messageOf } from '@/shared/api/ApiError'
+import type { InvitePreview } from '@/features/auth/types/invite'
 
 /**
- * Cadastro por convite (RF002, variante do quadro 1c).
+ * Aceite do convite de encarregado.
  *
- * É o formulário do cadastro comum com duas diferenças que vêm do convite: o
- * e-mail chega travado, porque trocá-lo desfaria o vínculo que o convite
- * estabelece, e não há escolha de perfil — ele já foi atribuído por quem
- * convidou.
+ * O convite não cria conta: ele vincula à organização a conta do endereço
+ * convidado. Sem sessão, a tela leva ao acesso — ou ao cadastro — e volta
+ * aqui; com a sessão de outro endereço, avisa antes de o servidor recusar.
  */
-const { invite } = defineProps<{ invite: Invite }>()
+const { invite } = defineProps<{ invite: InvitePreview }>()
 
-/** A coluna de apoio precisa saber: recusar um convite já aceito não faz sentido. */
+/** A coluna de apoio precisa saber que o vínculo foi aceito. */
 const emit = defineEmits<{ accepted: [] }>()
 
-const form = reactive({
-  name: '',
-  password: '',
-  confirmation: '',
-  acceptedTerms: false,
-})
-
-/** O endereço do convite é exibido num campo travado, nunca editado. */
-const invitedEmail = ref(invite.email)
+const router = useRouter()
+const { account } = useSession()
 
 const status = ref<'idle' | 'sending' | 'accepted'>('idle')
-const attempted = ref(false)
-const failure = ref<'utilizado' | 'inesperada' | null>(null)
+const failure = ref('')
 
-const summary = useTemplateRef<HTMLElement>('summary')
-
-const { checks, isValid: passwordIsValid, strength } = usePasswordPolicy(() => form.password)
-
-const confirmationMatches = computed(
-  () => form.confirmation.length > 0 && form.confirmation === form.password,
+const signedIn = computed(() => account.value.id !== '')
+const sameAccount = computed(
+  () => account.value.email.toLowerCase() === invite.email.toLowerCase(),
 )
+const backHere = computed(() => `/convites/${invite.token}`)
 
-const isComplete = computed(
-  () =>
-    form.name.trim() !== '' &&
-    passwordIsValid.value &&
-    confirmationMatches.value &&
-    form.acceptedTerms,
-)
-
-const nameError = computed(() =>
-  attempted.value && form.name.trim() === ''
-    ? 'Informe o nome completo, como consta no seu documento.'
-    : undefined,
-)
-
-const confirmationError = computed(() =>
-  form.confirmation.length > 0 && !confirmationMatches.value
-    ? 'As duas senhas precisam ser iguais.'
-    : undefined,
-)
-
-const confirmationHint = computed(() =>
-  confirmationMatches.value
-    ? 'As senhas coincidem.'
-    : 'Repita a senha exatamente como digitou acima.',
-)
-
-const termsError = computed(() =>
-  attempted.value && !form.acceptedTerms ? 'O aceite é obrigatório para criar a conta.' : undefined,
-)
-
-const showSummary = computed(() => attempted.value && !isComplete.value)
-
-const submitLabel = computed(() =>
-  status.value === 'sending' ? 'Criando conta…' : 'Aceitar convite e criar conta',
-)
-
-async function submit() {
-  attempted.value = true
-  failure.value = null
-
-  if (!isComplete.value) {
-    await nextTick()
-    summary.value?.focus()
-    return
-  }
-
+async function accept() {
+  if (status.value !== 'idle') return
+  failure.value = ''
   status.value = 'sending'
   try {
-    await acceptInvite({ token: invite.token, name: form.name, password: form.password })
+    await acceptInvite(invite.token)
+    await reloadSession()
     status.value = 'accepted'
     emit('accepted')
   } catch (error) {
     status.value = 'idle'
-    failure.value = error instanceof InviteError ? 'utilizado' : 'inesperada'
+    failure.value = messageOf(error)
   }
+}
+
+async function goToPanel() {
+  await router.push({ name: 'request-queue' })
 }
 </script>
 
 <template>
-  <!-- Conta criada: o convite dispensa o link do RN005 (veja `inviteService`). -->
   <div
     v-if="status === 'accepted'"
     class="flex flex-col gap-[18px]"
@@ -113,35 +61,28 @@ async function submit() {
     <BaseAlert
       variant="success"
       size="md"
-      title="Conta criada e vínculo aceito"
+      title="Vínculo aceito"
     >
-      <p>Você já é encarregado de proteção de dados do portal e pode entrar com:</p>
-      <p class="text-[17px] font-semibold break-words text-brand">
-        {{ invite.email }}
-      </p>
       <p>
-        O endereço não precisa de confirmação: o convite foi enviado para ele e aberto por
-        você.
+        Você agora responde como encarregado de proteção de dados de
+        {{ invite.organizationName }}.
       </p>
     </BaseAlert>
-
     <BaseButton
       block
-      :to="{ name: 'login', query: { email: invite.email } }"
+      @click="goToPanel"
     >
-      Entrar no painel de atendimento
+      Ir para o painel de atendimento
     </BaseButton>
   </div>
 
-  <form
+  <div
     v-else
     class="flex flex-col gap-[26px]"
-    novalidate
-    @submit.prevent="submit"
   >
     <div class="flex flex-col gap-2.5">
       <h1 class="font-serif text-3xl font-semibold leading-tight text-ink lg:text-4xl">
-        Aceitar o convite e criar sua conta
+        Aceitar o convite
       </h1>
       <p class="max-w-[48ch] text-base leading-relaxed text-ink-body">
         Você foi convidado para responder às requisições de titulares. Confira o vínculo ao
@@ -149,116 +90,61 @@ async function submit() {
       </p>
     </div>
 
-    <div
-      v-if="showSummary"
-      ref="summary"
-      tabindex="-1"
-    >
-      <BaseAlert title="Ainda não é possível criar a conta">
-        <p>Revise os campos marcados abaixo para concluir.</p>
-      </BaseAlert>
-    </div>
-
-    <BaseAlert
-      v-if="failure === 'utilizado'"
-      title="Este convite já foi usado"
-      size="md"
-    >
-      <p>
-        A conta deste convite foi criada enquanto esta página estava aberta. Entre com ela
-        para acessar o painel.
+    <div class="flex flex-col gap-1.5 border-l-[3px] border-brand bg-brand-wash px-4 py-4 md:px-[22px] md:py-5">
+      <p class="text-[13px] text-ink-muted">
+        Convite enviado para
       </p>
-      <div class="pt-0.5">
-        <BaseButton
-          :to="{ name: 'login', query: { email: invite.email } }"
-          size="sm"
-        >
-          Ir para o login
-        </BaseButton>
-      </div>
-    </BaseAlert>
+      <p class="break-all text-[17px] font-semibold text-brand md:text-xl">
+        {{ invite.email }}
+      </p>
+    </div>
 
     <BaseAlert
-      v-if="failure === 'inesperada'"
-      title="Não conseguimos criar a conta agora"
+      v-if="failure"
+      title="Não foi possível aceitar o convite"
     >
-      <p>Houve uma falha ao falar com o servidor. Tente novamente em alguns instantes.</p>
+      <p>{{ failure }}</p>
     </BaseAlert>
 
-    <div class="flex flex-col gap-[18px]">
-      <BaseField
-        v-model="form.name"
-        label="Nome completo"
-        placeholder="Como consta no seu documento"
-        autocomplete="name"
-        :error="nameError"
-        :disabled="status === 'sending'"
-      />
-
-      <BaseField
-        v-model="invitedEmail"
-        label="E-mail do convite"
-        type="email"
-        autocomplete="email"
-        locked
-        hint="Este endereço vem do convite e não pode ser alterado. Para usar outro, peça um novo convite a quem administra a organização."
-      />
-
-      <BaseField
-        v-model="form.password"
-        label="Senha"
-        type="password"
-        placeholder="Mínimo de 12 caracteres"
-        autocomplete="new-password"
-        :disabled="status === 'sending'"
-      />
-
-      <PasswordStrengthMeter
-        :checks="checks"
-        :strength="strength"
-        :invalid="attempted && !passwordIsValid"
-      />
-
-      <BaseField
-        v-model="form.confirmation"
-        label="Confirmação de senha"
-        type="password"
-        placeholder="Repita a senha"
-        autocomplete="new-password"
-        :hint="confirmationHint"
-        :hint-tone="confirmationMatches ? 'positive' : 'muted'"
-        :error="confirmationError"
-        :disabled="status === 'sending'"
-      />
-
-      <BaseCheckbox
-        v-model="form.acceptedTerms"
-        :error="termsError"
-        :disabled="status === 'sending'"
-      >
-        <span class="text-[15px] leading-normal text-ink-body">
-          Li e aceito os
-          <RouterLink
-            :to="{ name: 'terms' }"
-            class="text-brand hover:text-brand-strong"
-          >termos de uso</RouterLink>
-          e o
-          <RouterLink
-            :to="{ name: 'privacy' }"
-            class="text-brand hover:text-brand-strong"
-          >aviso de privacidade</RouterLink>.
-        </span>
-      </BaseCheckbox>
-
-      <div class="pt-0.5">
+    <!-- Sem sessão: o aceite exige entrar com a conta do endereço convidado. -->
+    <template v-if="!signedIn">
+      <p class="text-[15px] leading-relaxed text-ink-body">
+        Entre com a conta deste endereço para aceitar. Se ainda não tem conta, crie uma com
+        este mesmo e-mail e volte a este link.
+      </p>
+      <div class="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+        <BaseButton :to="{ name: 'login', query: { redirect: backHere, email: invite.email } }">
+          Entrar para aceitar
+        </BaseButton>
         <BaseButton
-          type="submit"
-          block
-          :busy="status === 'sending'"
+          variant="secondary"
+          :to="{ name: 'register' }"
         >
-          {{ submitLabel }}
+          Criar conta com este e-mail
         </BaseButton>
       </div>
-    </div>
-  </form>
+    </template>
+
+    <template v-else-if="!sameAccount">
+      <BaseAlert
+        variant="warning"
+        size="md"
+        title="Você entrou com outra conta"
+      >
+        <p>
+          A sessão aberta é de {{ account.email }}, mas o convite é para {{ invite.email }}.
+          Saia e entre com a conta que recebeu o convite.
+        </p>
+      </BaseAlert>
+    </template>
+
+    <BaseButton
+      v-else
+      block
+      :busy="status === 'sending'"
+      @click="accept"
+    >
+      {{ status === 'sending' ? 'Aceitando…' : 'Aceitar convite' }}
+    </BaseButton>
+  </div>
 </template>

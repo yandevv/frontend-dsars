@@ -1,117 +1,108 @@
 /**
- * Cadastro por convite — variante do quadro 1c de `Registro de Conta.dc.html`.
+ * Convite de encarregado — variante do quadro 1c de `Registro de Conta.dc.html`.
  *
  * Percorre a tela como quem recebeu o link por e-mail: o vínculo antes do
- * aceite, o e-mail que não se troca, e os três links que não levam a lugar
- * nenhum — vencido, já usado e inexistente.
+ * aceite, o aceite com a conta do endereço convidado, e os três links que não
+ * levam a lugar nenhum — vencido, já aceito e inexistente.
  */
-const VALID_PASSWORD = 'SenhaSegura!123'
+import { ENCARREGADO, ORG_ID, TITULAR, page, problem } from '../support/fixtures'
 
-function fillForm() {
-  cy.get('input[autocomplete="name"]').type('Bruno Carvalho de Souza')
-  cy.get('input[placeholder="Mínimo de 12 caracteres"]').type(VALID_PASSWORD)
-  cy.get('input[placeholder="Repita a senha"]').type(VALID_PASSWORD)
-  cy.get('input[type="checkbox"]').check()
+const INVITED = 'bruno.carvalho@meridianosaude.org.br'
+
+function preview(status: string) {
+  return {
+    body: {
+      organizationName: 'Instituto Meridiano de Saúde',
+      email: INVITED,
+      role: 'DPO',
+      expiresAt: '2026-10-03T12:00:00.000Z',
+      status,
+    },
+  }
 }
 
 describe('Convite de encarregado', () => {
-  it('mostra o vínculo que está sendo aceito antes do formulário ser enviado', () => {
-    cy.visit('/convite/convite-valido')
+  beforeEach(() => {
+    cy.intercept('GET', '/api/invites/convite-valido', preview('PENDING'))
+    cy.intercept('GET', '/api/invites/convite-expirado', preview('EXPIRED'))
+    cy.intercept('GET', '/api/invites/convite-usado', preview('ACCEPTED'))
+    cy.intercept('GET', '/api/invites/isto-nao-existe', problem(404, 'Este convite não existe.'))
+  })
 
-    cy.get('h1').should('contain.text', 'Aceitar o convite e criar sua conta')
+  it('mostra o vínculo que está sendo aceito', () => {
+    cy.visit('/convites/convite-valido')
+
+    cy.get('h1').should('contain.text', 'Aceitar o convite')
     cy.contains('Vínculo que você está aceitando').should('be.visible')
-    cy.contains('Instituto Meridiano de Saúde').should('be.visible')
-    cy.contains('CNPJ 12.345.678/0001-90').should('be.visible')
+    cy.get('main').contains('Instituto Meridiano de Saúde').should('be.visible')
     cy.contains('Encarregado de proteção de dados').should('be.visible')
-    cy.contains('Rogério Alencar Bueno').should('be.visible')
+    cy.contains(INVITED).should('be.visible')
   })
 
-  it('trava o e-mail do convite e diz o que fazer para usar outro', () => {
-    cy.visit('/convite/convite-valido')
+  it('sem sessão, leva ao acesso e volta ao convite', () => {
+    cy.visit('/convites/convite-valido')
 
-    cy.get('input[type="email"]')
-      .should('be.disabled')
-      .and('have.value', 'bruno.carvalho@meridianosaude.org.br')
-    cy.contains('não pode ser alterado').should('be.visible')
-  })
-
-  it('não oferece escolha de perfil: ele vem do convite', () => {
-    cy.visit('/convite/convite-valido')
-
-    cy.get('input[type="radio"]').should('not.exist')
-    cy.get('select').should('not.exist')
-    cy.contains('O perfil não é escolhido no cadastro').should('be.visible')
-  })
-
-  it('recusa o envio incompleto sem chamar o serviço', () => {
-    cy.visit('/convite/convite-valido')
-
-    cy.get('button[type="submit"]').click()
-
-    cy.contains('Ainda não é possível criar a conta').should('be.visible')
-    cy.contains('Informe o nome completo').should('be.visible')
-    cy.contains('O aceite é obrigatório').should('be.visible')
-  })
-
-  it('cria a conta e dispensa a confirmação de e-mail do RN005', () => {
-    cy.visit('/convite/convite-valido')
-    fillForm()
-    cy.get('button[type="submit"]').click()
-
-    cy.contains('Conta criada e vínculo aceito', { timeout: 10_000 }).should('be.visible')
-    cy.contains('não precisa de confirmação').should('be.visible')
-    cy.contains('a', 'Entrar no painel de atendimento').should(
-      'have.attr',
-      'href',
-      '/entrar?email=bruno.carvalho@meridianosaude.org.br',
-    )
-    // Aceito o convite, não há mais o que recusar.
-    cy.contains('Recusar o convite').should('not.exist')
-  })
-
-  it('explica o convite vencido e oferece pedir outro', () => {
-    cy.visit('/convite/convite-expirado')
-
-    cy.get('h1', { timeout: 10_000 }).should('contain.text', 'Este convite venceu em')
-    cy.get('form').should('not.exist')
-    cy.contains('button', 'Solicitar novo convite').click()
-    cy.contains('Pedido registrado', { timeout: 10_000 }).should('be.visible')
-  })
-
-  it('manda ao login quem abre um convite já utilizado', () => {
-    cy.visit('/convite/convite-usado')
-
-    cy.get('h1', { timeout: 10_000 }).should('contain.text', 'A conta deste convite já foi criada')
-    // Escopado ao conteúdo: o cabeçalho também tem um "Entrar", sem o endereço.
-    cy.get('main')
-      .contains('a', 'Entrar')
-      .should('have.attr', 'href', '/entrar?email=helena.vasconcelos@meridianosaude.org.br')
-    cy.get('main')
-      .contains('a', 'Esqueci a senha')
+    cy.contains('a', 'Entrar para aceitar')
       .should('have.attr', 'href')
-      .and('include', '/recuperar-acesso')
+      .and('include', 'redirect=/convites/convite-valido')
+    cy.contains('a', 'Criar conta com este e-mail').should('have.attr', 'href', '/registrar')
+  })
+
+  it('aceita o convite com a conta convidada e leva ao painel', () => {
+    cy.signIn('titular', { email: INVITED, fullName: 'Bruno Carvalho de Souza' })
+    cy.intercept('POST', '/api/invites/convite-valido/accept', {
+      body: { organizationId: ORG_ID, organizationName: 'Instituto Meridiano de Saúde', role: 'DPO' },
+    }).as('accept')
+    cy.intercept('GET', '/api/organizations/*/requests?*', { body: page([]) })
+    cy.visit('/convites/convite-valido')
+
+    // Aceito, o perfil relido passa a ter o vínculo com a organização.
+    cy.intercept('GET', '/api/me', {
+      body: { ...ENCARREGADO, email: INVITED, fullName: 'Bruno Carvalho de Souza' },
+    })
+    cy.contains('button', 'Aceitar convite').click()
+
+    cy.wait('@accept')
+    cy.contains('Vínculo aceito').should('be.visible')
+    cy.contains('button', 'Ir para o painel de atendimento').click()
+    cy.location('pathname').should('eq', '/painel/fila')
+  })
+
+  it('avisa quando a sessão é de outro endereço', () => {
+    cy.signIn('titular')
+    cy.visit('/convites/convite-valido')
+
+    cy.contains('Você entrou com outra conta').should('be.visible')
+    cy.contains(TITULAR.email).should('be.visible')
+    cy.contains('button', 'Aceitar convite').should('not.exist')
+  })
+
+  it('aceita também o formato antigo do link', () => {
+    cy.visit('/convite/convite-valido')
+
+    cy.get('h1').should('contain.text', 'Aceitar o convite')
+  })
+
+  it('explica o convite vencido', () => {
+    cy.visit('/convites/convite-expirado')
+
+    cy.get('h1').should('contain.text', 'Este convite venceu em')
+    cy.contains('Peça um novo a quem enviou').should('be.visible')
+  })
+
+  it('manda ao login quem abre um convite já aceito', () => {
+    cy.visit('/convites/convite-usado')
+
+    cy.get('h1').should('contain.text', 'Este convite já foi aceito')
+    cy.get('main').contains('a', 'Entrar').should('have.attr', 'href').and('include', '/entrar')
   })
 
   it('não revela nada sobre um convite que não existe', () => {
-    cy.visit('/convite/isto-nao-existe')
+    cy.visit('/convites/isto-nao-existe')
 
-    cy.get('h1', { timeout: 10_000 }).should('contain.text', 'Não encontramos este convite')
-    // Nenhum endereço de convidado aparece: o portal não confirma quem foi
-    // convidado. O contato da encarregada é outra coisa — é público, e está na
-    // página inicial.
+    cy.get('h1').should('contain.text', 'Não encontramos este convite')
     cy.get('main').should('not.contain.text', 'bruno.carvalho@')
-    cy.get('main').should('not.contain.text', 'carla.menezes@')
-    cy.get('main').should('not.contain.text', 'helena.vasconcelos@')
     cy.contains('a', 'Crie uma conta comum').should('have.attr', 'href', '/registrar')
-  })
-
-  it('leva ao cadastro comum e ao contato da encarregada quando o link falha', () => {
-    cy.visit('/convite/isto-nao-existe')
-
-    cy.get('a[href^="mailto:"]', { timeout: 10_000 }).should(
-      'have.attr',
-      'href',
-      'mailto:dpo@meridianosaude.org.br',
-    )
+    cy.get('a[href^="mailto:"]').should('have.attr', 'href', 'mailto:dpo@meridianosaude.org.br')
   })
 })

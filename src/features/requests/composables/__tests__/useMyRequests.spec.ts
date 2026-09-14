@@ -2,10 +2,13 @@ import { describe, it, expect, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 
-import { countMyRequests, ownRequests, sortForTitular, useMyRequests } from '../useMyRequests'
-import { DEMO_REQUESTS } from '@/features/requests/data/requests'
+import { countMyRequests, sortForTitular, useMyRequests } from '../useMyRequests'
+import { titularRequests } from '@/test/factories'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+vi.mock('@/features/requests/services/requestService', async () => {
+  const { titularRequests: requests } = await import('@/test/factories')
+  return { listMyRequests: () => Promise.resolve(requests()) }
+})
 
 const TITULAR = 'titular@exemplo.com.br'
 
@@ -22,22 +25,9 @@ async function mountList(email: string) {
   return { list: result.value!, wrapper }
 }
 
-describe('ownRequests', () => {
-  it('devolve só as requisições do titular, sem diferenciar maiúsculas no e-mail', () => {
-    const own = ownRequests(DEMO_REQUESTS, 'Titular@Exemplo.com.br')
-
-    expect(own.length).toBeGreaterThan(0)
-    expect(own.every((request) => request.subject.email === TITULAR)).toBe(true)
-  })
-
-  it('não devolve nada para quem não registrou pedidos', () => {
-    expect(ownRequests(DEMO_REQUESTS, 'ninguem@exemplo.com.br')).toEqual([])
-  })
-})
-
 describe('sortForTitular', () => {
   it('põe vencidas e a vencer no topo e as encerradas no fim', () => {
-    const sorted = sortForTitular(ownRequests(DEMO_REQUESTS, TITULAR))
+    const sorted = sortForTitular(titularRequests())
 
     expect(sorted.map((request) => request.protocol)).toEqual([
       '2026-000418', // vencida
@@ -51,7 +41,7 @@ describe('sortForTitular', () => {
 
 describe('countMyRequests', () => {
   it('conta andamento, prazo curto, vencidas e encerradas', () => {
-    expect(countMyRequests(ownRequests(DEMO_REQUESTS, TITULAR))).toEqual({
+    expect(countMyRequests(titularRequests())).toEqual({
       open: 3,
       dueSoon: 1,
       overdue: 1,

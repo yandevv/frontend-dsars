@@ -2,24 +2,16 @@ import { describe, it, expect } from 'vitest'
 
 import { daysLeft, deadlineLabel, deadlineStatusOf } from '../deadline'
 import { daysFromNow } from '@/shared/utils/date'
+import { makeRequest } from '@/test/factories'
 import type { DataRequest, RequestStatus } from '@/features/requests/types/request'
 
-function request(dueInDays: number, status: RequestStatus = 'em-analise'): DataRequest {
-  return {
-    protocol: '2026-000001',
-    id: 'req_0',
+function request(dueInDays: number, status: RequestStatus = 'aberta'): DataRequest {
+  return makeRequest({
     rightNumeral: 'II',
-    description: 'pedido',
     status,
-    subject: { name: 'Marina Torres de Almeida', email: 'titular@exemplo.com.br' },
     registeredAt: daysFromNow(dueInDays - 15),
     dueAt: daysFromNow(dueInDays),
-    channel: 'Portal do titular',
-    attachments: [],
-    timeline: [],
-    notes: [],
-    messages: [],
-  }
+  })
 }
 
 describe('situação do prazo', () => {
@@ -33,12 +25,6 @@ describe('situação do prazo', () => {
   it('não calcula prazo de requisição que saiu da fila', () => {
     expect(deadlineStatusOf(request(-9, 'concluida'))).toBe('encerrada')
     expect(deadlineStatusOf(request(-9, 'cancelada'))).toBe('encerrada')
-  })
-
-  it('mantém o prazo correndo enquanto se espera o titular', () => {
-    // O art. 19 não suspende a contagem por pedido de complemento, e a leitura
-    // conservadora é a que a autoridade tende a adotar.
-    expect(deadlineStatusOf(request(-1, 'aguardando-complemento'))).toBe('vencida')
   })
 
   it('escreve o prazo como a fila o anuncia', () => {
@@ -61,11 +47,13 @@ describe('situação do prazo', () => {
     const NOW = new Date('2026-09-26T12:00:00.000Z')
     const HOUR = 3_600_000
 
-    function immediate(hoursLeft: number, status: RequestStatus = 'em-analise'): DataRequest {
+    function immediate(hoursLeft: number, status: RequestStatus = 'aberta'): DataRequest {
+      const due = NOW.getTime() + hoursLeft * HOUR
       return {
         ...request(0, status),
         rightNumeral: 'I',
-        dueAt: new Date(NOW.getTime() + hoursLeft * HOUR).toISOString(),
+        registeredAt: new Date(due - 24 * HOUR).toISOString(),
+        dueAt: new Date(due).toISOString(),
       }
     }
 

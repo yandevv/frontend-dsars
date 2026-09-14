@@ -1,71 +1,87 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 import {
-  ProfileError,
-  cancelEmailChange,
   fetchProfile,
   requestEmailChange,
+  revealPersonalData,
   updateProfile,
 } from '../accountSettingsService'
 import { lastConfirmationSentAt } from '@/features/auth/services/emailConfirmationService'
+import { mockApi, route } from '@/test/api'
+import type { ApiAccountView } from '@/shared/api/contracts'
 
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
-
-const TITULAR = 'titular@exemplo.com.br'
-const PASSWORD = 'SenhaSegura!123'
+function view(overrides: Partial<ApiAccountView> = {}): ApiAccountView {
+  return {
+    id: 'conta-1',
+    fullName: 'Marina Torres de Almeida',
+    email: 'marina@exemplo.com.br',
+    emailVerified: true,
+    memberships: [],
+    passwordSet: true,
+    createdAt: '2026-01-10T12:00:00.000Z',
+    document: { type: 'CPF', masked: '•••.•••.789-••', verified: true },
+    phone: { masked: '(••) •••••-3071' },
+    pendingEmailChange: null,
+    ...overrides,
+  }
+}
 
 describe('accountSettingsService', () => {
-  it('devolve o cadastro da conta, com o documento completo', async () => {
-    const profile = await fetchProfile(TITULAR)
+  it('lê os dados já mascarados pelo servidor', async () => {
+    mockApi([route('GET', '/me', view())])
 
-    expect(profile).toMatchObject({ name: 'Marina Torres de Almeida', document: '476.201.789-04' })
-  })
-
-  it('atualiza o nome sem espaços sobrando e recusa nome sem sobrenome', async () => {
-    const updated = await updateProfile(TITULAR, 'name', '  Marina   Torres  Almeida ')
-    expect(updated.name).toBe('Marina Torres Almeida')
-
-    await expect(updateProfile(TITULAR, 'name', 'Marina')).rejects.toMatchObject({
-      refusal: 'nome-invalido',
+    await expect(fetchProfile()).resolves.toEqual({
+      name: 'Marina Torres de Almeida',
+      email: 'marina@exemplo.com.br',
+      documentMasked: '•••.•••.789-••',
+      documentType: 'CPF',
+      documentVerified: true,
+      phoneMasked: '(••) •••••-3071',
+      pendingEmail: undefined,
+      passwordSet: true,
     })
   })
 
-  it('formata o telefone e recusa número sem DDD', async () => {
-    const updated = await updateProfile(TITULAR, 'phone', '16981102233')
-    expect(updated.phone).toBe('(16) 98110-2233')
+  it('altera nome e telefone pelo PATCH da conta', async () => {
+    const { calls } = mockApi([route('PATCH', '/me', view({ fullName: 'Marina Torres' }))])
 
-    await expect(updateProfile(TITULAR, 'phone', '98110-2233')).rejects.toBeInstanceOf(ProfileError)
+    const name = await updateProfile('name', '  Marina Torres ')
+    await updateProfile('phone', '(16) 99482-3071')
+
+    expect(name.name).toBe('Marina Torres')
+    expect(calls.map((call) => call.body)).toEqual([
+      { fullName: 'Marina Torres' },
+      { phone: '(16) 99482-3071' },
+    ])
   })
 
-  it('deixa a troca de e-mail pendente, sem mudar o e-mail atual, e envia o link', async () => {
-    const profile = await requestEmailChange(TITULAR, {
-      newEmail: 'Marina.Almeida@Exemplo.com.br',
-      password: PASSWORD,
-    })
+  it('pede a troca de e-mail e passa a mostrar a pendência', async () => {
+    mockApi([
+      route('POST', '/me/email-change', { message: 'ok' }),
+      route(
+        'GET',
+        '/me',
+        view({ pendingEmailChange: { newEmail: 'nova@exemplo.com.br', expiresAt: '2026-09-27' } }),
+      ),
+    ])
 
-    expect(profile.email).toBe(TITULAR)
-    expect(profile.pendingEmail).toBe('marina.almeida@exemplo.com.br')
-    expect(lastConfirmationSentAt('marina.almeida@exemplo.com.br')).toBeDefined()
+    const profile = await requestEmailChange('Nova@Exemplo.com.br')
 
-    const cancelled = await cancelEmailChange(TITULAR)
-    expect(cancelled.pendingEmail).toBeUndefined()
+    expect(profile.pendingEmail).toBe('nova@exemplo.com.br')
+    expect(lastConfirmationSentAt('nova@exemplo.com.br')).toBeTypeOf('number')
   })
 
-  it('exige a senha atual e um endereço diferente para trocar o e-mail', async () => {
-    await expect(
-      requestEmailChange(TITULAR, { newEmail: 'outro@exemplo.com.br', password: 'errada' }),
-    ).rejects.toMatchObject({ refusal: 'senha-incorreta' })
-    await expect(
-      requestEmailChange(TITULAR, { newEmail: TITULAR, password: PASSWORD }),
-    ).rejects.toMatchObject({ refusal: 'email-igual' })
-    await expect(
-      requestEmailChange(TITULAR, { newEmail: 'sem-arroba', password: PASSWORD }),
-    ).rejects.toMatchObject({ refusal: 'email-invalido' })
-  })
+  it('revela um dado de cada vez, pedido ao servidor', async () => {
+    const { calls } = mockApi([
+      route('POST', '/me/personal-data/reveal', (call) =>
+        (call.body as { fields: string[] }).fields[0] === 'document'
+          ? { document: { type: 'CPF', value: '476.201.789-04' }, phone: null }
+          : { document: null, phone: '(16) 99482-3071' },
+      ),
+    ])
 
-  it('não cancela troca que não existe', async () => {
-    await expect(cancelEmailChange('helena.vasconcelos@meridianosaude.org.br')).rejects.toMatchObject({
-      refusal: 'sem-troca-pendente',
-    })
+    await expect(revealPersonalData('document')).resolves.toBe('476.201.789-04')
+    await expect(revealPersonalData('phone')).resolves.toBe('(16) 99482-3071')
+    expect(calls[0]!.body).toEqual({ fields: ['document'] })
   })
 })

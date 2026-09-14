@@ -21,17 +21,12 @@ const formats: { id: ExportFormat; title: string; detail: string }[] = [
   {
     id: 'csv',
     title: 'Planilha CSV',
-    detail: 'Uma linha por indicador, para cruzar com outras bases.',
+    detail: 'Os indicadores do recorte, para cruzar com outras bases.',
   },
   {
     id: 'pdf',
     title: 'Relatório em PDF',
-    detail: 'Layout desta tela com período e data de apuração.',
-  },
-  {
-    id: 'base',
-    title: 'Base analítica anonimizada',
-    detail: 'Uma linha por requisição, sem nome, e-mail ou documento do titular.',
+    detail: 'Os mesmos números, com período e data de apuração.',
   },
 ]
 

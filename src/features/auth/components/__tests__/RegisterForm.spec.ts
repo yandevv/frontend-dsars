@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils'
 
 import RegisterForm from '../RegisterForm.vue'
-import { AccountError } from '@/features/auth/services/accountService'
-import type { Account, NewAccount } from '@/features/auth/types/auth'
+import { ApiError } from '@/shared/api/ApiError'
+import type { NewAccount } from '@/features/auth/types/auth'
 
-const createAccount = vi.hoisted(() => vi.fn<(input: NewAccount) => Promise<Account>>())
+const createAccount = vi.hoisted(() => vi.fn<(input: NewAccount) => Promise<string>>())
 const push = vi.hoisted(() => vi.fn<(to: unknown) => Promise<void>>())
 
 vi.mock('vue-router', async (importOriginal) => ({
@@ -13,11 +13,7 @@ vi.mock('vue-router', async (importOriginal) => ({
   useRouter: () => ({ push }),
 }))
 
-vi.mock('@/features/auth/services/accountService', async (importOriginal) => ({
-  // `AccountError` real: o componente decide o que mostrar com `instanceof`.
-  ...(await importOriginal<typeof import('@/features/auth/services/accountService')>()),
-  createAccount,
-}))
+vi.mock('@/features/auth/services/accountService', () => ({ createAccount }))
 
 const VALID_PASSWORD = 'SenhaSegura!123'
 
@@ -63,12 +59,7 @@ describe('RegisterForm', () => {
   beforeEach(() => {
     createAccount.mockReset()
     push.mockReset()
-    createAccount.mockResolvedValue({
-      name: 'Marina Torres de Almeida',
-      email: 'marina@exemplo.com.br',
-      role: 'titular',
-      emailConfirmed: false,
-    })
+    createAccount.mockResolvedValue('marina@exemplo.com.br')
   })
 
   it('mostra os critérios de senha desde o início, antes de qualquer envio', () => {
@@ -130,29 +121,21 @@ describe('RegisterForm', () => {
     })
   })
 
-  it('oferece as duas saídas quando o e-mail já tem conta (RN004)', async () => {
-    createAccount.mockRejectedValue(new AccountError('email-em-uso'))
+  it('mostra a recusa do servidor, campo a campo quando ele a detalha', async () => {
+    createAccount.mockRejectedValue(
+      new ApiError(400, { detail: 'A senha precisa ter ao menos 12 caracteres.' }),
+    )
     const wrapper = render()
     await fill(wrapper)
 
     await submit(wrapper)
 
-    expect(wrapper.text()).toContain('Já existe uma conta com este e-mail')
-
-    const destinations = wrapper
-      .findAllComponents(RouterLinkStub)
-      .map((link) => link.props('to'))
-      .filter((to): to is { name: string } => typeof to === 'object' && to !== null && 'name' in to)
-      .map((to) => to.name)
-
-    expect(destinations).toContain('login')
-    expect(destinations).toContain('password-recovery')
-    // O formulário continua disponível para trocar o endereço.
+    expect(wrapper.text()).toContain('A senha precisa ter ao menos 12 caracteres.')
     expect(wrapper.find('form').exists()).toBe(true)
   })
 
   it('explica a falha inesperada sem perder o que foi digitado', async () => {
-    createAccount.mockRejectedValue(new Error('rede indisponível'))
+    createAccount.mockRejectedValue(new ApiError(0))
     const wrapper = render()
     await fill(wrapper)
 

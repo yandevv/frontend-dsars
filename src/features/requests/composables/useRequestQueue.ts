@@ -5,7 +5,8 @@ import { DEADLINE_ALERT_DAYS } from '@/features/requests/constants/requestPolicy
 import { REQUEST_STATUSES, REQUEST_STATUS_LABELS } from '@/features/requests/constants/requestStatus'
 import { daysLeft, deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { findRight } from '@/shared/constants/lgpdRights'
-import { listRequests } from '@/features/requests/services/requestService'
+import { listOrganizationRequests } from '@/features/requests/services/requestService'
+import { messageOf } from '@/shared/api/ApiError'
 import type { DataRequest, DeadlineStatus } from '@/features/requests/types/request'
 
 export type DeadlineFilter = 'todos' | 'vencidas' | 'proximas' | 'em-dia'
@@ -67,6 +68,7 @@ export function useRequestQueue() {
 
   const requests = ref<readonly DataRequest[]>([])
   const loading = ref(true)
+  const error = ref('')
 
   const search = ref(DEFAULTS.search)
   const status = ref(DEFAULTS.status)
@@ -194,7 +196,12 @@ export function useRequestQueue() {
 
   async function load() {
     loading.value = true
-    requests.value = await listRequests()
+    error.value = ''
+    try {
+      requests.value = await listOrganizationRequests()
+    } catch (failure) {
+      error.value = messageOf(failure)
+    }
     readQuery()
     loading.value = false
   }
@@ -203,6 +210,7 @@ export function useRequestQueue() {
 
   return {
     loading,
+    error,
     requests,
     sorted,
     search,

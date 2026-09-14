@@ -1,44 +1,64 @@
 import { computed, ref, type ComputedRef } from 'vue'
 
-import { DEMO_ACCOUNTS } from '@/features/auth/data/accounts'
+import { fetchMe } from '@/features/auth/services/sessionService'
 import type { Account, AccountRole } from '@/features/auth/types/auth'
 
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * ATENÇÃO — aqui entra a sessão de verdade.
+ * A sessão de quem está na tela.
  *
- * Quando houver servidor, `account` passa a ser lida do token devolvido pelo
- * acesso, e a queda para a conta de demonstração some junto com este comentário.
+ * Quem decide se há sessão é o servidor: o navegador só guarda cookies que o
+ * JavaScript não lê. Por isso a primeira navegação pergunta `GET /me` uma vez,
+ * e o guarda de rotas espera a resposta antes de abrir qualquer tela restrita.
  *
- * Enquanto isso não existe sessão nenhuma: nada é guardado entre recargas e
- * ninguém é barrado. Por isso `useSession()` recebe o perfil que a tela exige
- * e, se ninguém entrou pelo formulário de acesso, devolve a conta de
- * demonstração daquele perfil — é o que permite abrir qualquer tela do sistema
- * digitando a URL, inclusive nos testes e nas capturas de tela.
- *
- * Uma consequência a não esquecer: **a autorização não está implementada**.
- * Decidir quem pode ver a fila da organização é trabalho do servidor; esconder
- * um link no navegador nunca foi proteção.
- * ─────────────────────────────────────────────────────────────────────────────
+ * Esconder um link aqui nunca foi proteção: a autorização mora no servidor,
+ * que recusa com 403 o que o perfil não pode ver.
  */
 
 const signedIn = ref<Account | null>(null)
+let loading: Promise<Account | null> | null = null
+let loaded = false
 
-function demoAccountFor(role: AccountRole): Account {
-  const account = DEMO_ACCOUNTS.find((item) => item.role === role && item.emailConfirmed)
-  if (!account) throw new Error(`Nenhuma conta de demonstração com o perfil ${role}.`)
-
-  const { name, email, emailConfirmed } = account
-  return { name, email, role, emailConfirmed }
+/** Conta vazia para os instantes em que a tela ainda não tem sessão. */
+const NO_ACCOUNT: Account = {
+  id: '',
+  name: '',
+  email: '',
+  role: 'titular',
+  emailConfirmed: false,
 }
 
-export function useSession(role: AccountRole): { account: ComputedRef<Account> } {
-  const account = computed(() => {
-    const current = signedIn.value
-    return current && current.role === role ? current : demoAccountFor(role)
-  })
+/** Carrega a sessão uma única vez; as chamadas seguintes reaproveitam a resposta. */
+export function ensureSession(): Promise<Account | null> {
+  if (loaded) return Promise.resolve(signedIn.value)
+  loading ??= fetchMe()
+    .then((account) => {
+      signedIn.value = account
+      return account
+    })
+    .catch(() => null)
+    .finally(() => {
+      loaded = true
+      loading = null
+    })
+  return loading
+}
 
-  return { account }
+/** Relê o perfil — depois de aceitar um convite, o perfil muda de titular para encarregado. */
+export async function reloadSession(): Promise<Account | null> {
+  loaded = false
+  return ensureSession()
+}
+
+/**
+ * A conta da sessão. O perfil pedido pela tela é só documentação: quem a abre
+ * já passou pelo guarda de rotas, que confere o perfil antes.
+ */
+export function useSession(_role?: AccountRole): { account: ComputedRef<Account> } {
+  return { account: computed(() => signedIn.value ?? NO_ACCOUNT) }
+}
+
+export function sessionAccount(): Account | null {
+  return signedIn.value
 }
 
 /**
@@ -53,8 +73,10 @@ export function currentRole(): AccountRole {
 /** Chamada pelo formulário de acesso quando a autenticação dá certo. */
 export function startSession(account: Account): void {
   signedIn.value = account
+  loaded = true
 }
 
 export function endSession(): void {
   signedIn.value = null
+  loaded = true
 }

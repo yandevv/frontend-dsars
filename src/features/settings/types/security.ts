@@ -3,16 +3,18 @@ export interface AccountSession {
   id: string
   /** Navegador e sistema — "Chrome em Windows". */
   device: string
-  /** Cidade estimada e endereço de origem, como o servidor os registra. */
+  /** O endereço de origem, como o servidor o registrou. */
   origin: string
   /** Quando a sessão começou. */
   startedAt: string
-  /** Último uso; "agora" para a sessão de quem está na tela. */
+  /** Último uso. */
   lastSeenAt: string
   current: boolean
 }
 
 export interface SecurityOverview {
-  passwordChangedAt: string
+  /** Falso na conta criada pelo Google, que ainda não definiu senha. */
+  passwordSet: boolean
+  passwordChangedAt: string | null
   sessions: readonly AccountSession[]
 }

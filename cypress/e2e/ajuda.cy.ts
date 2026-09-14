@@ -32,9 +32,10 @@ describe('Ajuda', () => {
     cy.get('#contato').should('contain.text', 'dpo@meridianosaude.org.br')
   })
 
-  it('leva ao formulário de pedido', () => {
+  it('leva ao formulário de pedido, passando pelo acesso sem sessão', () => {
     cy.contains('a', 'Fazer um pedido').click()
-    cy.location('pathname').should('eq', '/requisicoes/nova')
+    cy.location('pathname').should('eq', '/entrar')
+    cy.location('search').should('contain', 'redirect=/requisicoes/nova')
   })
 
   it('cabe no celular sem rolagem lateral', () => {

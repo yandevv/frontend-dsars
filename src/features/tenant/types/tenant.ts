@@ -15,18 +15,16 @@ export interface DataProtectionOfficer {
  * cada empresa cliente tenha o mesmo portal com a sua própria identificação.
  */
 export interface Tenant {
+  /** Identificador público da organização na API. */
+  slug: string
   name: string
   /** Versão curta do nome, usada no cabeçalho em telas estreitas. */
   shortName: string
   tagline: string
-  /**
-   * Artigo definido que acompanha o nome em português ("O Instituto…",
-   * "A Clínica…"). Fica na configuração porque varia com o nome de cada
-   * organização e não pode ser deduzido com segurança em tempo de execução.
-   */
-  article: string
   /** CNPJ, já formatado para exibição. */
   registrationId: string
   address: string
   dpo: DataProtectionOfficer
+  /** Orientação da organização sobre o exercício dos direitos, vinda da API. */
+  rightsGuidance?: string
 }

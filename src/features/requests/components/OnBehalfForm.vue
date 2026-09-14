@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 
 import AccessFormatPicker from '@/features/requests/components/AccessFormatPicker.vue'
 import AttachmentPicker from '@/features/requests/components/AttachmentPicker.vue'
@@ -14,28 +14,12 @@ import {
   DESCRIPTION_MIN_LENGTH,
 } from '@/features/requests/constants/requestPolicy'
 import { ORIGIN_CHANNELS } from '@/features/requests/constants/originChannels'
-import {
-  SUBJECT_SEARCH_MIN_LENGTH,
-  searchSubjects,
-} from '@/features/requests/services/subjectRegistryService'
 import { registerOnBehalf } from '@/features/requests/services/requestService'
-import {
-  dueFromReceived,
-  isCpfShaped,
-  isFutureDay,
-  subjectDocument,
-  todayInput,
-} from '@/features/requests/utils/onBehalf'
-import {
-  formatDue,
-  isImmediate,
-  needsAccessFormat,
-} from '@/features/requests/utils/responseDeadline'
-import type { RegisteredSubject } from '@/features/requests/data/subjectRegistry'
+import { needsAccessFormat } from '@/features/requests/utils/responseDeadline'
+import { messageOf } from '@/shared/api/ApiError'
 import type {
   AccessFormat,
   OnBehalfReceipt,
-  OnBehalfSubject,
   OriginChannel,
   RequestAttachment,
 } from '@/features/requests/types/request'
@@ -46,17 +30,15 @@ import type {
  * O mesmo pedido do formulário do titular, com duas seções antes: quem pediu e
  * por onde o pedido chegou. No computador as três seções ficam na mesma página;
  * no celular viram três passos, cada um conferido antes de seguir.
+ *
+ * O titular é identificado pelo e-mail da conta: é ela que acompanha o pedido
+ * e recebe os avisos, e o servidor recusa endereço sem conta ativa e
+ * confirmada.
  */
-const { author } = defineProps<{
-  /** A encarregada da sessão: o registro fica vinculado a ela. */
-  author: string
-}>()
-
 const emit = defineEmits<{ registered: [OnBehalfReceipt] }>()
 
-/** Direito e data pertencem à tela: a coluna de apoio calcula o prazo com eles. */
+/** O direito pertence à tela: a coluna de apoio calcula o prazo com ele. */
 const rightNumeral = defineModel<string>('right', { required: true })
-const receivedOn = defineModel<string>('receivedOn', { required: true })
 const accessFormat = defineModel<AccessFormat | ''>('accessFormat', { default: '' })
 
 // O formato só existe no acesso aos dados; trocar de direito o apaga.
@@ -64,75 +46,15 @@ watch(rightNumeral, (numeral) => {
   if (!needsAccessFormat(numeral)) accessFormat.value = ''
 })
 
-/** Resposta em até 24 horas, conforme o direito e o formato escolhidos. */
-const immediate = computed(() => isImmediate(rightNumeral.value, accessFormat.value || undefined))
-
 // ── Titular ──────────────────────────────────────────────────────────────────
-const mode = ref<'cadastro' | 'manual'>('cadastro')
-const query = ref('')
-const results = ref<RegisteredSubject[]>([])
-const searching = ref(false)
-const selected = ref<RegisteredSubject | null>(null)
-const manual = reactive({ name: '', cpf: '', email: '', phone: '' })
+const subjectEmail = ref('')
 const identityVerified = ref(false)
 
-let searchTicket = 0
-let searchTimer: ReturnType<typeof setTimeout> | undefined
-
-// A busca espera a pessoa parar de digitar, e só a última resposta vale.
-watch(query, (value) => {
-  clearTimeout(searchTimer)
-  const ticket = ++searchTicket
-  if (value.trim().length < SUBJECT_SEARCH_MIN_LENGTH) {
-    results.value = []
-    searching.value = false
-    return
-  }
-  searching.value = true
-  searchTimer = setTimeout(async () => {
-    const found = await searchSubjects(value)
-    if (ticket !== searchTicket) return
-    results.value = found
-    searching.value = false
-  }, 250)
-})
-
-function choose(subject: RegisteredSubject) {
-  selected.value = selected.value?.id === subject.id ? null : subject
-}
-
-function subjectLine(subject: RegisteredSubject): string {
-  return [
-    subjectDocument(subject.cpf),
-    subject.email || 'sem e-mail no cadastro',
-    subject.hasAccount ? 'conta no portal' : 'sem conta no portal',
-    subject.since,
-  ].join(' · ')
-}
-
-const manualEmailOk = computed(
-  () => manual.email.trim() === '' || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.email.trim()),
-)
-
-const subjectOk = computed(() =>
-  mode.value === 'cadastro'
-    ? selected.value !== null
-    : manual.name.trim().length >= 3 && isCpfShaped(manual.cpf) && manualEmailOk.value,
-)
-
-/** Sem e-mail a resposta não chega por aqui — a tela avisa antes do registro. */
-const withoutEmail = computed(() =>
-  mode.value === 'cadastro'
-    ? selected.value !== null && selected.value.email === ''
-    : manual.email.trim() === '',
-)
+const subjectOk = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(subjectEmail.value.trim()))
 
 // ── Origem ───────────────────────────────────────────────────────────────────
 const channel = ref<OriginChannel | null>(null)
 const reference = ref('')
-const today = todayInput()
-
-const dateOk = computed(() => receivedOn.value !== '' && !isFutureDay(receivedOn.value))
 
 // ── Pedido ───────────────────────────────────────────────────────────────────
 const description = ref('')
@@ -151,14 +73,14 @@ const step = ref<Step>(1)
 /** Passos já conferidos: é a partir deles que os erros aparecem, no celular. */
 const reviewed = ref<Set<Step>>(new Set())
 const status = ref<'idle' | 'sending'>('idle')
-const failure = ref(false)
+const failure = ref('')
 const summary = useTemplateRef<HTMLElement>('summary')
 
 const sending = computed(() => status.value === 'sending')
 
 const stepOk = computed<Record<Step, boolean>>(() => ({
   1: subjectOk.value && identityVerified.value,
-  2: channel.value !== null && dateOk.value,
+  2: channel.value !== null,
   3: rightOk.value && formatOk.value && descriptionOk.value,
 }))
 
@@ -166,26 +88,9 @@ const isComplete = computed(() => stepOk.value[1] && stepOk.value[2] && stepOk.v
 
 const show = (n: Step) => reviewed.value.has(n)
 
-const subjectError = computed(() => {
-  if (!show(1) || subjectOk.value) return undefined
-  return mode.value === 'cadastro' ? 'Selecione o titular do pedido para registrar.' : undefined
-})
-
-const nameError = computed(() =>
-  show(1) && mode.value === 'manual' && manual.name.trim().length < 3
-    ? 'Informe o nome completo do titular.'
-    : undefined,
-)
-
-const cpfError = computed(() =>
-  show(1) && mode.value === 'manual' && !isCpfShaped(manual.cpf)
-    ? 'Informe os 11 algarismos do CPF.'
-    : undefined,
-)
-
 const emailError = computed(() =>
-  show(1) && mode.value === 'manual' && !manualEmailOk.value
-    ? 'Confira o endereço — ele precisa ter um @ e um domínio.'
+  show(1) && !subjectOk.value
+    ? 'Informe o e-mail da conta do titular, no formato nome@dominio.com.br.'
     : undefined,
 )
 
@@ -199,16 +104,6 @@ const channelError = computed(() =>
   show(2) && channel.value === null ? 'Informe por onde o pedido chegou.' : undefined,
 )
 
-const dateError = computed(() =>
-  show(2) && !dateOk.value ? 'Informe uma data de hoje ou anterior.' : undefined,
-)
-
-const dateHint = computed(() =>
-  dateOk.value
-    ? `Prazo legal até ${formatDue(dueFromReceived(receivedOn.value, immediate.value), immediate.value)}.`
-    : 'O prazo conta desta data.',
-)
-
 const descriptionError = computed(() =>
   show(3) && !descriptionOk.value
     ? `Escreva pelo menos ${DESCRIPTION_MIN_LENGTH} caracteres.`
@@ -217,10 +112,9 @@ const descriptionError = computed(() =>
 
 const missing = computed(() =>
   [
-    subjectOk.value ? null : 'identifique o titular',
+    subjectOk.value ? null : 'informe o e-mail da conta do titular',
     identityVerified.value ? null : 'confirme a verificação de identidade',
     channel.value ? null : 'informe o canal de origem',
-    dateOk.value ? null : 'informe uma data de recebimento de hoje ou anterior',
     rightOk.value ? null : 'escolha o direito exercido',
     formatOk.value ? null : 'escolha o formato do acesso',
     descriptionOk.value ? null : 'descreva o pedido',
@@ -230,18 +124,6 @@ const missing = computed(() =>
 const missingText = computed(() => {
   const text = missing.value.join('; ')
   return text.charAt(0).toUpperCase() + text.slice(1) + '.'
-})
-
-const searchHint = computed(() => {
-  if (query.value.trim().length < SUBJECT_SEARCH_MIN_LENGTH) {
-    return 'Por CPF, e-mail ou nome. A busca só retorna titulares desta organização controladora.'
-  }
-  if (searching.value) return 'Buscando no cadastro…'
-  if (results.value.length === 0) {
-    return 'Nenhum titular encontrado. Confira o dado ou registre como titular sem cadastro.'
-  }
-  if (results.value.length === 1) return 'Um resultado. Confira o CPF antes de selecionar.'
-  return `${results.value.length} resultados. Confira o CPF antes de escolher entre nomes parecidos.`
 })
 
 const submitHint = computed(() => {
@@ -269,25 +151,11 @@ function back() {
   if (step.value > 1) step.value = (step.value - 1) as Step
 }
 
-function currentSubject(): OnBehalfSubject {
-  if (mode.value === 'cadastro' && selected.value) {
-    const { name, cpf, email, phone, hasAccount } = selected.value
-    return { name, cpf, email, phone, hasAccount }
-  }
-  return {
-    name: manual.name,
-    cpf: manual.cpf,
-    email: manual.email,
-    phone: manual.phone || undefined,
-    hasAccount: false,
-  }
-}
-
 async function submit() {
   if (sending.value) return
 
   reviewed.value = new Set<Step>([1, 2, 3])
-  failure.value = false
+  failure.value = ''
 
   if (!isComplete.value) {
     // No celular, volta ao primeiro passo com pendência; o resumo diz o resto.
@@ -299,24 +167,20 @@ async function submit() {
 
   status.value = 'sending'
   try {
-    const receipt = await registerOnBehalf(
-      {
-        subject: currentSubject(),
-        identityVerified: identityVerified.value,
-        channel: channel.value,
-        receivedOn: receivedOn.value,
-        reference: reference.value,
-        rightNumeral: rightNumeral.value,
-        accessFormat: accessFormat.value || undefined,
-        description: description.value,
-        attachments: attachments.value,
-      },
-      author,
-    )
+    const receipt = await registerOnBehalf({
+      subjectEmail: subjectEmail.value,
+      identityVerified: identityVerified.value,
+      channel: channel.value,
+      reference: reference.value,
+      rightNumeral: rightNumeral.value,
+      accessFormat: accessFormat.value || undefined,
+      description: description.value,
+      attachments: attachments.value,
+    })
     emit('registered', receipt)
-  } catch {
+  } catch (error) {
     status.value = 'idle'
-    failure.value = true
+    failure.value = messageOf(error)
     await focusSummary()
   }
 }
@@ -338,8 +202,8 @@ function stepClass(n: Step) {
         Registrar requisição em nome do titular
       </h1>
       <p class="max-w-[70ch] text-base leading-relaxed text-ink-body">
-        Para pedidos que chegaram fora da plataforma — balcão, telefone, e-mail, carta ou ouvidoria.
-        O registro entra na fila como qualquer outro e fica vinculado à sua conta de encarregada.
+        Para pedidos que chegaram fora da plataforma — balcão, telefone, e-mail, carta ou outro
+        canal. O registro entra na fila como qualquer outro e fica vinculado à sua conta.
       </p>
       <p
         class="font-label text-[12px] font-semibold uppercase tracking-[0.07em] text-ink-soft lg:hidden"
@@ -358,7 +222,7 @@ function stepClass(n: Step) {
         v-if="failure"
         title="Não foi possível registrar a requisição"
       >
-        <p>Algo falhou no caminho e nada foi gravado. Tente registrar de novo em alguns instantes.</p>
+        <p>{{ failure }}</p>
       </BaseAlert>
       <BaseAlert
         v-else
@@ -381,144 +245,17 @@ function stepClass(n: Step) {
         1. Titular do pedido
       </h2>
 
-      <fieldset class="flex flex-wrap gap-2">
-        <legend class="sr-only">
-          O titular tem cadastro na organização?
-        </legend>
-        <label
-          v-for="option in [
-            { id: 'cadastro', label: 'Titular com cadastro' },
-            { id: 'manual', label: 'Titular sem cadastro' },
-          ] as const"
-          :key="option.id"
-          class="cursor-pointer border px-4 py-2.5 text-[15px] font-medium has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand"
-          :class="
-            mode === option.id
-              ? 'border-ink bg-ink text-white'
-              : 'border-field-line bg-surface text-ink'
-          "
-        >
-          <input
-            v-model="mode"
-            type="radio"
-            name="modo-titular"
-            :value="option.id"
-            class="sr-only"
-            :disabled="sending"
-          >
-          {{ option.label }}
-        </label>
-      </fieldset>
-
-      <template v-if="mode === 'cadastro'">
-        <BaseField
-          v-model="query"
-          label="Buscar no cadastro"
-          required
-          autocomplete="off"
-          placeholder="CPF, e-mail ou nome"
-          :disabled="sending"
-          :error="subjectError"
-          :hint="searchHint"
-        />
-
-        <ul
-          v-if="results.length > 0"
-          class="flex flex-col gap-2"
-          aria-label="Titulares encontrados"
-        >
-          <li
-            v-for="subject in results"
-            :key="subject.id"
-            class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-            :class="
-              selected?.id === subject.id
-                ? 'border-2 border-brand bg-brand-wash'
-                : 'border border-line bg-surface'
-            "
-          >
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <p class="text-base font-semibold text-ink">
-                {{ subject.name }}
-              </p>
-              <p class="text-[13px] leading-normal text-ink-muted">
-                {{ subjectLine(subject) }}
-              </p>
-            </div>
-            <button
-              type="button"
-              class="h-10 shrink-0 self-start border px-4 text-sm font-medium sm:self-auto"
-              :class="
-                selected?.id === subject.id
-                  ? 'border-brand bg-brand text-white'
-                  : 'border-field-line bg-surface text-ink hover:border-ink'
-              "
-              :aria-pressed="selected?.id === subject.id"
-              :disabled="sending"
-              @click="choose(subject)"
-            >
-              {{ selected?.id === subject.id ? 'Selecionado' : 'Selecionar' }}
-              <span class="sr-only"> {{ subject.name }}</span>
-            </button>
-          </li>
-        </ul>
-      </template>
-
-      <div
-        v-else
-        class="grid gap-4 sm:grid-cols-2"
-      >
-        <BaseField
-          v-model="manual.name"
-          label="Nome completo"
-          required
-          autocomplete="off"
-          class="sm:col-span-2"
-          :disabled="sending"
-          :error="nameError"
-        />
-        <BaseField
-          v-model="manual.cpf"
-          label="CPF"
-          required
-          autocomplete="off"
-          placeholder="000.000.000-00"
-          :disabled="sending"
-          :error="cpfError"
-        />
-        <BaseField
-          v-model="manual.phone"
-          label="Telefone"
-          type="tel"
-          autocomplete="off"
-          :disabled="sending"
-        />
-        <BaseField
-          v-model="manual.email"
-          label="E-mail para resposta"
-          type="email"
-          autocomplete="off"
-          class="sm:col-span-2"
-          :disabled="sending"
-          :error="emailError"
-          hint="Opcional. Sem conta no portal, o titular recebe só o comprovante."
-        />
-      </div>
-
-      <div
-        v-if="withoutEmail && (mode === 'manual' || selected)"
-        class="flex gap-3 border-l-[3px] border-pending-line bg-pending-wash px-4 py-3"
-      >
-        <div class="flex flex-col gap-0.5">
-          <p class="text-[15px] font-semibold text-ink">
-            Sem e-mail, a resposta sai por carta
-          </p>
-          <p class="text-sm leading-relaxed text-ink-body">
-            Registre o endereço na descrição e avise o titular do protocolo por telefone. O
-            acompanhamento pelo portal exige conta.
-          </p>
-        </div>
-      </div>
+      <BaseField
+        v-model="subjectEmail"
+        label="E-mail da conta do titular"
+        type="email"
+        required
+        autocomplete="off"
+        placeholder="titular@exemplo.com.br"
+        :disabled="sending"
+        :error="emailError"
+        hint="O titular precisa ter conta no portal, com o e-mail confirmado: é por ela que acompanha o pedido e recebe a resposta."
+      />
 
       <div
         class="px-4 py-3.5"
@@ -619,26 +356,14 @@ function stepClass(n: Step) {
         </p>
       </fieldset>
 
-      <div class="grid gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
-        <BaseField
-          v-model="receivedOn"
-          label="Data de recebimento"
-          type="date"
-          required
-          :max="today"
-          :disabled="sending"
-          :error="dateError"
-          :hint="dateHint"
-        />
-        <BaseField
-          v-model="reference"
-          label="Referência do canal (opcional)"
-          autocomplete="off"
-          placeholder="Ex.: atendimento 4471, carta nº 219/2026"
-          :disabled="sending"
-          hint="Liga este registro ao documento original guardado fora da plataforma."
-        />
-      </div>
+      <BaseField
+        v-model="reference"
+        label="Referência do canal (opcional)"
+        autocomplete="off"
+        placeholder="Ex.: atendimento 4471, carta nº 219/2026"
+        :disabled="sending"
+        hint="Liga este registro ao documento original guardado fora da plataforma."
+      />
 
       <div class="flex flex-col-reverse gap-2.5 lg:hidden">
         <BaseButton

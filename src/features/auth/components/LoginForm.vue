@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
@@ -9,25 +9,18 @@ import BaseField from '@/shared/ui/BaseField.vue'
 import GoogleAuthButton from '@/shared/ui/GoogleAuthButton.vue'
 import { startSession } from '@/features/auth/composables/useSession'
 import { ROLE_HOME } from '@/features/auth/constants/roleHome'
-import { useLoginAttempts } from '@/features/auth/composables/useLoginAttempts'
-import {
-  LOGIN_LOCKOUT_MINUTES,
-  LOGIN_MAX_ATTEMPTS,
-  SESSION_IDLE_MINUTES,
-  SESSION_PERSISTENT_DAYS,
-  attemptsInWords,
-} from '@/features/auth/constants/loginPolicy'
-import { resendConfirmation } from '@/features/auth/services/emailConfirmationService'
-import { SignInError, signIn } from '@/features/auth/services/sessionService'
+import { SESSION_IDLE_MINUTES, SESSION_PERSISTENT_DAYS } from '@/features/auth/constants/loginPolicy'
+import { signIn } from '@/features/auth/services/sessionService'
+import { isApiError, messageOf } from '@/shared/api/ApiError'
 
 /**
  * Acesso à conta (RF003, RN008 a RN010).
  *
- * Duas decisões vêm direto do RN009 e valem ser ditas: a recusa é igual para
- * e-mail errado e senha errada, e nenhum dos dois campos é marcado em vermelho
- * nem recebe o foco de volta. Apontar o campo errado contaria a um estranho
- * quais endereços têm conta neste portal — por isso o foco vai para o aviso,
- * que fala dos dois campos ao mesmo tempo.
+ * A recusa é igual para e-mail errado, senha errada e conta bloqueada, e o
+ * texto vem do servidor, que é quem conta as tentativas (RN008/RN009).
+ * Nenhum dos campos é marcado em vermelho nem recebe o foco de volta: apontar
+ * o campo errado contaria a um estranho quais endereços têm conta neste
+ * portal — por isso o foco vai para o aviso, que fala dos dois campos.
  */
 const { initialEmail = '', sessionExpired = false } = defineProps<{
   /** Endereço trazido de outra tela, como a recusa de e-mail já cadastrado. */
@@ -41,57 +34,23 @@ const password = ref('')
 const keepSignedIn = ref(false)
 const showPassword = ref(false)
 
+const route = useRoute()
 const router = useRouter()
 
 const status = ref<'idle' | 'authenticating' | 'signed-in'>('idle')
-const failure = ref<'credentials' | 'unconfirmed' | 'unexpected' | null>(null)
-const resendStatus = ref<'idle' | 'sending' | 'sent'>('idle')
+const failure = ref<'empty' | 'refused' | 'unexpected' | null>(null)
+const refusal = ref('')
 
 const alert = useTemplateRef<HTMLElement>('alert')
-const emailField = useTemplateRef<InstanceType<typeof BaseField>>('emailField')
-
-const { attempts, remaining, isLocked, countdown, registerFailure, reset } = useLoginAttempts()
 
 // Autenticado, o formulário segue travado até a troca de tela terminar.
 const isBusy = computed(() => status.value !== 'idle')
-const fieldsLocked = computed(() => isBusy.value || isLocked.value)
 
 /** O aviso do RN010 some assim que houver qualquer outro retorno na tela. */
-const showSessionExpired = computed(() => sessionExpired && failure.value === null && !isLocked.value)
+const showSessionExpired = computed(() => sessionExpired && failure.value === null)
 
 /** Há algo a anunciar — e, portanto, algo para onde mandar o foco. */
-const hasAlert = computed(
-  () => showSessionExpired.value || isLocked.value || failure.value !== null,
-)
-
-const failureText = computed(() =>
-  remaining.value === 1
-    ? 'Confira os dois campos e tente novamente. Resta 1 tentativa antes do bloqueio temporário.'
-    : `Confira os dois campos e tente novamente. Restam ${remaining.value} tentativas antes do bloqueio temporário.`,
-)
-
-const lockoutText = computed(
-  () =>
-    `Houve ${attemptsInWords(LOGIN_MAX_ATTEMPTS)} tentativas seguidas sem sucesso. É uma proteção da conta, não uma falha do portal.`,
-)
-
-const attemptsCounter = computed(() =>
-  attempts.value > 0 && !isLocked.value
-    ? `Tentativas usadas: ${attempts.value} de ${LOGIN_MAX_ATTEMPTS}`
-    : '',
-)
-
-const submitLabel = computed(() => {
-  if (isBusy.value) return 'Entrando…'
-  if (isLocked.value) return 'Acesso bloqueado'
-  return 'Entrar'
-})
-
-/** Leva junto o endereço já digitado, para não pedir duas vezes a mesma coisa. */
-const recoveryRoute = computed(() => ({
-  name: 'password-recovery',
-  query: email.value.trim() ? { email: email.value.trim() } : undefined,
-}))
+const hasAlert = computed(() => showSessionExpired.value || failure.value !== null)
 
 /** O efeito da caixa, dito antes de entrar — depois do acesso a tela já é outra. */
 const sessionText = computed(() =>
@@ -100,64 +59,53 @@ const sessionText = computed(() =>
     : `A sessão expira após ${SESSION_IDLE_MINUTES} minutos sem atividade.`,
 )
 
+/** Volta para a tela que pediu o acesso, desde que seja uma rota deste portal. */
+function destination(role: keyof typeof ROLE_HOME) {
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+    return redirect
+  }
+  return ROLE_HOME[role]
+}
+
 async function focusAlert() {
   await nextTick()
   alert.value?.focus()
 }
 
 async function submit() {
-  if (fieldsLocked.value) return
+  if (isBusy.value) return
 
   failure.value = null
 
-  // Campo vazio não é palpite de credencial, então não gasta uma tentativa.
+  // Campo vazio não é palpite de credencial: nem chega ao servidor.
   if (!email.value.trim() || !password.value) {
-    failure.value = 'credentials'
+    failure.value = 'empty'
     await focusAlert()
     return
   }
 
   status.value = 'authenticating'
   try {
-    const account = await signIn({ email: email.value.trim(), password: password.value })
+    const account = await signIn({
+      email: email.value.trim(),
+      password: password.value,
+      rememberMe: keepSignedIn.value,
+    })
     startSession(account)
     status.value = 'signed-in'
-    reset()
     // `replace`: voltar do painel não deve cair de novo no formulário de acesso.
-    await router.replace(ROLE_HOME[account.role])
+    await router.replace(destination(account.role))
   } catch (error) {
     status.value = 'idle'
-    if (error instanceof SignInError && error.reason === 'email-nao-confirmado') {
-      // Senha correta: não é tentativa frustrada e não conta para o bloqueio.
-      failure.value = 'unconfirmed'
-    } else if (error instanceof SignInError) {
-      registerFailure()
-      failure.value = 'credentials'
+    if (isApiError(error, 401) || isApiError(error, 429)) {
+      failure.value = 'refused'
+      refusal.value = messageOf(error)
     } else {
       failure.value = 'unexpected'
     }
     await focusAlert()
   }
-}
-
-async function resend() {
-  if (resendStatus.value === 'sending') return
-
-  resendStatus.value = 'sending'
-  try {
-    await resendConfirmation(email.value.trim())
-    resendStatus.value = 'sent'
-  } catch {
-    resendStatus.value = 'idle'
-  }
-}
-
-async function correctEmail() {
-  failure.value = null
-  resendStatus.value = 'idle'
-  password.value = ''
-  await nextTick()
-  emailField.value?.focus()
 }
 </script>
 
@@ -199,76 +147,27 @@ async function correctEmail() {
         </p>
       </BaseAlert>
 
-      <!-- RN008: bloqueio temporário, com o tempo que ainda falta. -->
       <BaseAlert
-        v-if="isLocked"
-        framed
-        size="md"
-        :title="`Acesso bloqueado por ${LOGIN_LOCKOUT_MINUTES} minutos`"
+        v-if="failure === 'empty'"
+        title="Informe o e-mail e a senha"
       >
-        <p>{{ lockoutText }}</p>
-        <p class="flex items-baseline gap-2.5">
-          <span class="font-label text-[34px] font-bold leading-none text-danger-strong">
-            {{ countdown }}
-          </span>
-          <span>até liberar</span>
-        </p>
+        <p>Preencha os dois campos para entrar.</p>
+      </BaseAlert>
+
+      <!-- RN008/RN009: a mesma recusa para e-mail, senha e conta bloqueada. -->
+      <BaseAlert
+        v-else-if="failure === 'refused'"
+        title="Não foi possível entrar"
+      >
+        <p>{{ refusal }}</p>
         <p>
           Se a senha não é mais lembrada,
           <RouterLink
-            :to="recoveryRoute"
+            :to="{ name: 'password-recovery', query: email.trim() ? { email: email.trim() } : undefined }"
             class="font-medium underline"
           >
-            recupere o acesso agora
-          </RouterLink>
-          — isso libera a conta sem esperar.
-        </p>
-      </BaseAlert>
-
-      <!-- RN009: mesma recusa para e-mail e para senha. -->
-      <BaseAlert
-        v-else-if="failure === 'credentials'"
-        title="E-mail ou senha incorretos"
-      >
-        <p>{{ failureText }}</p>
-      </BaseAlert>
-
-      <!-- RN005: a senha confere, mas o link de confirmação nunca foi aberto. -->
-      <BaseAlert
-        v-else-if="failure === 'unconfirmed'"
-        variant="warning"
-        size="md"
-        title="Falta confirmar o e-mail desta conta"
-      >
-        <p>
-          A senha está correta, mas o link enviado para {{ email.trim() }} ainda não foi
-          aberto. Sem essa confirmação não podemos vincular os pedidos a você com segurança.
-        </p>
-        <div class="flex flex-wrap gap-2.5 pt-0.5">
-          <BaseButton
-            size="sm"
-            :busy="resendStatus === 'sending'"
-            @click="resend"
-          >
-            {{ resendStatus === 'sending' ? 'Reenviando…' : 'Reenviar o link' }}
-          </BaseButton>
-          <BaseButton
-            size="sm"
-            variant="secondary"
-            @click="correctEmail"
-          >
-            Corrigir o e-mail
-          </BaseButton>
-        </div>
-        <p
-          v-if="resendStatus === 'sent'"
-          role="status"
-          class="text-brand"
-        >
-          Enviamos outro link para {{ email.trim() }}.
-        </p>
-        <p class="text-[13px] text-ink-muted">
-          O link vale por 24 horas. Confira a caixa de spam antes de pedir outro.
+            recupere o acesso
+          </RouterLink>.
         </p>
       </BaseAlert>
 
@@ -282,13 +181,12 @@ async function correctEmail() {
 
     <div class="flex flex-col gap-[18px]">
       <BaseField
-        ref="emailField"
         v-model="email"
         label="E-mail"
         type="email"
         placeholder="nome@exemplo.com.br"
         autocomplete="email"
-        :disabled="fieldsLocked"
+        :disabled="isBusy"
       />
 
       <BaseField
@@ -297,7 +195,7 @@ async function correctEmail() {
         :type="showPassword ? 'text' : 'password'"
         placeholder="Sua senha"
         autocomplete="current-password"
-        :disabled="fieldsLocked"
+        :disabled="isBusy"
       >
         <template #action>
           <button
@@ -312,7 +210,7 @@ async function correctEmail() {
 
       <BaseCheckbox
         v-model="keepSignedIn"
-        :disabled="fieldsLocked"
+        :disabled="isBusy"
       >
         <span class="text-[15px] text-ink">Manter-me conectado</span>
         <span class="text-[13px] text-ink-muted">{{ sessionText }}</span>
@@ -323,9 +221,8 @@ async function correctEmail() {
           type="submit"
           block
           :busy="isBusy"
-          :disabled="isLocked"
         >
-          {{ submitLabel }}
+          {{ isBusy ? 'Entrando…' : 'Entrar' }}
         </BaseButton>
         <div class="flex flex-wrap items-center justify-between gap-4">
           <RouterLink
@@ -334,10 +231,6 @@ async function correctEmail() {
           >
             Esqueci minha senha
           </RouterLink>
-          <span
-            v-if="attemptsCounter"
-            class="text-sm text-ink-muted"
-          >{{ attemptsCounter }}</span>
         </div>
       </div>
 
@@ -350,7 +243,10 @@ async function correctEmail() {
         <span class="h-px flex-1 bg-line" />
       </div>
 
-      <GoogleAuthButton label="Entrar com o Google" />
+      <GoogleAuthButton
+        label="Entrar com o Google"
+        :remember-me="keepSignedIn"
+      />
     </div>
   </form>
 </template>

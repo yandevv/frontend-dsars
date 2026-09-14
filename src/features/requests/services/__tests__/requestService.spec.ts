@@ -1,176 +1,250 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 
-import { DEMO_REQUESTS } from '@/features/requests/data/requests'
-import { LEGAL_DEADLINE_DAYS } from '@/features/requests/constants/requestPolicy'
 import {
   RequestNotFoundError,
   answerRequest,
-  MessageRuleError,
-  sendMessage,
   cancelRequests,
   createRequest,
+  deleteMessage,
+  editMessage,
   fetchRequest,
-  listRequests,
+  listMyRequests,
+  listOrganizationRequests,
+  registerOnBehalf,
+  sendMessage,
 } from '../requestService'
-import { daysUntil } from '@/shared/utils/date'
-import { isUuidV7 } from '@/shared/utils/uuid'
+import { startSession } from '@/features/auth/composables/useSession'
+import { mockApi, problem, route } from '@/test/api'
+import { apiDetails, apiMessage, apiSummary, isoFromNow } from '@/test/factories'
 
-/** O último item — `Array.prototype.at` fica fora da versão da biblioteca do projeto. */
-const last = <T>(list: readonly T[]): T | undefined => list[list.length - 1]
+const HOUR = 3_600_000
 
+const registered = (hours: number) => ({
+  id: '01920000-0000-7000-8000-000000000200',
+  protocolNumber: '2026-000200',
+  rights: ['DATA_ACCESS'],
+  responseFormat: 'SIMPLIFIED',
+  status: 'OPEN',
+  registeredAt: isoFromNow(0),
+  dueAt: isoFromNow(hours * HOUR),
+  deadlineStatus: 'DUE_SOON',
+  attachments: [],
+})
 
-// A espera artificial existe para a tela mostrar o estado de envio; nos testes
-// só atrasaria a suíte.
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+beforeEach(() => {
+  startSession({
+    id: 'conta-dpo',
+    name: 'Helena Prado Vasconcelos',
+    email: 'helena@meridiano.org.br',
+    role: 'encarregado',
+    emailConfirmed: true,
+    organizationId: 'org-1',
+    organizationName: 'Instituto Meridiano de Saúde',
+  })
+})
 
-function idOf(protocol: string): string {
-  return DEMO_REQUESTS.find((request) => request.protocol === protocol)!.id
-}
+describe('requestService · listas', () => {
+  it('busca todas as páginas da própria lista e traduz cada linha', async () => {
+    const { calls } = mockApi([
+      route('GET', '/me/requests', (call) =>
+        call.query.get('page') === '1'
+          ? { items: [apiSummary()], page: 1, pageSize: 1, total: 2 }
+          : {
+              items: [apiSummary({ id: 'outra', protocolNumber: '2026-000102', status: 'COMPLETED' })],
+              page: 2,
+              pageSize: 1,
+              total: 2,
+            },
+      ),
+    ])
 
-const subject = { name: 'Marina Torres de Almeida', email: 'titular@exemplo.com.br' }
+    const requests = await listMyRequests()
 
-describe('requestService', () => {
-  it('registra a requisição com protocolo, identificador e prazo do art. 19', async () => {
-    const receipt = await createRequest(
-      { rightNumeral: 'VI', description: 'Peço a eliminação dos meus dados de contato.', attachments: [] },
-      subject,
-    )
-
-    expect(receipt.protocol).toMatch(/^2026-000\d{3}$/)
-    expect(isUuidV7(receipt.id)).toBe(true)
-    expect(daysUntil(receipt.dueAt)).toBe(LEGAL_DEADLINE_DAYS)
+    expect(requests.map((request) => request.protocol)).toEqual(['2026-000101', '2026-000102'])
+    expect(requests[0]).toMatchObject({ rightNumeral: 'VI', status: 'aberta', deadline: 'em-dia' })
+    expect(requests[1]!.status).toBe('concluida')
+    expect(calls).toHaveLength(2)
   })
 
-  it('dá 24 horas à confirmação e ao acesso simplificado', async () => {
-    const confirmation = await createRequest(
-      { rightNumeral: 'I', description: 'Quero saber se vocês tratam meus dados.', attachments: [] },
-      subject,
-    )
-    const simplified = await createRequest(
-      {
-        rightNumeral: 'II',
-        accessFormat: 'simplificado',
-        description: 'Quero ver os meus dados cadastrais.',
-        attachments: [],
-      },
-      subject,
-    )
+  it('pede a fila da organização vinculada à sessão', async () => {
+    const { calls } = mockApi([
+      route('GET', '/organizations/org-1/requests', { items: [], page: 1, pageSize: 50, total: 0 }),
+    ])
 
-    const hours = (receipt: { registeredAt: string; dueAt: string }) =>
-      (new Date(receipt.dueAt).getTime() - new Date(receipt.registeredAt).getTime()) / 3_600_000
-
-    expect(confirmation.immediate).toBe(true)
-    expect(hours(confirmation)).toBe(24)
-    expect(simplified.immediate).toBe(true)
-    expect((await fetchRequest(simplified.id)).accessFormat).toBe('simplificado')
+    await expect(listOrganizationRequests()).resolves.toEqual([])
+    expect(calls[0]!.path).toBe('/organizations/org-1/requests')
   })
+})
 
-  it('dá 15 dias ao acesso sem formato, como declaração completa', async () => {
-    const receipt = await createRequest(
-      { rightNumeral: 'II', description: 'Quero cópia dos meus exames.', attachments: [] },
-      subject,
-    )
-
-    expect(receipt.immediate).toBe(false)
-    expect(daysUntil(receipt.dueAt)).toBe(LEGAL_DEADLINE_DAYS)
-    expect((await fetchRequest(receipt.id)).accessFormat).toBe('completo')
-  })
-
-  it('coloca a requisição recém-criada na fila da organização', async () => {
-    const receipt = await createRequest(
-      { rightNumeral: 'II', description: 'Quero cópia dos meus exames.', attachments: [] },
-      subject,
-    )
-
-    const queue = await listRequests()
-    expect(queue.map((item) => item.protocol)).toContain(receipt.protocol)
-
-    const created = await fetchRequest(receipt.id)
-    expect(created.status).toBe('em-analise')
-    expect(created.timeline).toHaveLength(1)
-  })
-
-  it('recusa um identificador que não existe', async () => {
-    await expect(fetchRequest('01a00000-0000-7000-8000-000000000000')).rejects.toBeInstanceOf(
-      RequestNotFoundError,
-    )
-  })
-
-  it('não aceita mais o protocolo no lugar do identificador', async () => {
-    await expect(fetchRequest('2026-000418')).rejects.toBeInstanceOf(RequestNotFoundError)
-  })
-
-  it('encerra o atendimento, registra a resposta na trilha e o parecer na conversa', async () => {
-    const answered = await answerRequest(idOf('2026-000447'), {
-      outcome: 'atendido',
-      text: 'Segue a declaração completa dos dados que mantemos sobre você.',
-      attachments: [{ name: 'declaracao-completa.pdf', meta: 'PDF · 220 KB' }],
-      author: 'Helena Prado Vasconcelos',
-    })
-
-    expect(answered.status).toBe('concluida')
-    expect(answered.answer?.outcome).toBe('atendido')
-    expect(answered.answer?.attachments).toHaveLength(1)
-    expect(answered.timeline[0]?.title).toContain('Atendimento finalizado')
-    expect(answered.timeline[0]?.highlight).toBe(true)
-    expect(last(answered.messages)).toMatchObject({ kind: 'parecer', authorRole: 'encarregado' })
-  })
-
-  it('não finaliza sem o resultado anexado', async () => {
-    await expect(
-      answerRequest(idOf('2026-000452'), { outcome: 'atendido', text: 'Feito.', attachments: [] }),
-    ).rejects.toMatchObject({ rule: 'sem-resultado' })
-  })
-
-  it('não finaliza de novo uma requisição encerrada', async () => {
-    await expect(
-      answerRequest(idOf('2026-000392'), {
-        outcome: 'atendido',
-        text: 'Uma segunda resposta.',
-        attachments: [{ name: 'x.pdf', meta: 'PDF' }],
+describe('requestService · detalhe', () => {
+  it('junta detalhe, conversa e pesquisa numa requisição só', async () => {
+    mockApi([
+      route('GET', '/requests/r1', apiDetails({ id: 'r1', status: 'COMPLETED', closedAt: isoFromNow(0) })),
+      route('GET', '/requests/r1/messages', {
+        items: [
+          apiMessage(),
+          apiMessage({
+            id: 'parecer',
+            isConclusive: true,
+            mine: false,
+            body: 'Seus dados foram eliminados.',
+            author: { id: 'dpo', fullName: 'Helena Prado Vasconcelos', role: 'DPO' },
+          }),
+        ],
       }),
-    ).rejects.toBeInstanceOf(MessageRuleError)
+      route('GET', '/requests/r1/survey', {
+        available: true,
+        answered: true,
+        response: { rating: 5, comment: null, respondedAt: isoFromNow(0) },
+      }),
+    ])
+
+    const request = await fetchRequest('r1')
+
+    expect(request.messages.map((message) => message.kind)).toEqual(['mensagem', 'parecer'])
+    expect(request.answer).toMatchObject({ text: 'Seus dados foram eliminados.' })
+    expect(request.survey?.rating).toBe(5)
+    expect(request.timeline[0]!.highlight).toBe(true)
   })
 
-  it('pede complemento por mensagem sem tirar a requisição da fila', async () => {
-    const waiting = await sendMessage(idOf('2026-000444'), {
-      text: 'Precisamos de uma cópia do documento de identidade.',
-      kind: 'complemento',
-      actor: { name: 'Helena Prado Vasconcelos', role: 'encarregado' },
+  it('trata pedido alheio como inexistente', async () => {
+    mockApi([route('GET', '/requests/r9', problem(403, 'Acesso negado'))])
+
+    await expect(fetchRequest('r9')).rejects.toBeInstanceOf(RequestNotFoundError)
+  })
+})
+
+describe('requestService · registro', () => {
+  it('registra pelo portal com o direito, o formato e os anexos', async () => {
+    const { calls } = mockApi([route('POST', '/portal/demonstracao/requests', registered(24))])
+    const file = new File(['x'], 'rg.pdf', { type: 'application/pdf' })
+
+    const receipt = await createRequest({
+      rightNumeral: 'II',
+      accessFormat: 'simplificado',
+      description: 'Quero ver os meus dados cadastrais.',
+      attachments: [{ name: 'rg.pdf', meta: '1 KB', file }],
     })
 
-    expect(waiting.status).toBe('aguardando-complemento')
-    expect(waiting.closedAt).toBeUndefined()
-    expect(last(waiting.messages)?.kind).toBe('complemento')
+    // A primeira chamada pode ser o perfil da organização, pedido uma vez só.
+    const post = calls.find((call) => call.method === 'POST')!
+    expect(post.body).toEqual({
+      fields: {
+        rights: ['DATA_ACCESS'],
+        responseFormat: ['SIMPLIFIED'],
+        description: ['Quero ver os meus dados cadastrais.'],
+      },
+      files: ['rg.pdf'],
+    })
+    expect(receipt).toMatchObject({ protocol: '2026-000200', immediate: true })
   })
 
-  it('cancela em lote com um motivo único e registra na trilha de cada uma', async () => {
-    const ids = [idOf('2026-000418'), idOf('2026-000403')]
-    const { cancelled, skipped } = await cancelRequests(ids, '  Consegui os documentos direto na unidade.  ')
+  it('pede o formato simplificado para a confirmação de tratamento', async () => {
+    const { calls } = mockApi([route('POST', '/portal/demonstracao/requests', registered(24))])
 
-    expect(skipped).toEqual([])
-    expect(cancelled.map((request) => request.status)).toEqual(['cancelada', 'cancelada'])
-    for (const request of cancelled) {
-      expect(request.closedAt).toBeDefined()
-      expect(request.timeline[0]?.title).toBe('Requisição cancelada pelo titular')
-      expect(request.timeline[0]?.detail).toContain('“Consegui os documentos direto na unidade.”')
-    }
+    await createRequest({ rightNumeral: 'I', description: 'Vocês tratam meus dados?', attachments: [] })
+
+    const post = calls.find((call) => call.method === 'POST')!
+    expect((post.body as { fields: Record<string, string[]> }).fields.responseFormat).toEqual([
+      'SIMPLIFIED',
+    ])
   })
 
-  it('deixa de fora o que já estava encerrado, sem falhar o lote', async () => {
-    const { cancelled, skipped } = await cancelRequests(
-      [idOf('2026-000392'), idOf('2026-000452')],
-      'Não preciso mais destes pedidos.',
-    )
+  it('registra em nome do titular com o e-mail da conta e o canal', async () => {
+    const { calls } = mockApi([route('POST', '/organizations/org-1/requests', registered(360))])
 
-    expect(skipped.map((request) => request.protocol)).toEqual(['2026-000392'])
-    expect(cancelled.map((request) => request.protocol)).toEqual(['2026-000452'])
-    expect(skipped[0]?.status).toBe('concluida')
+    const receipt = await registerOnBehalf({
+      subjectEmail: ' Titular@Exemplo.com.br ',
+      identityVerified: true,
+      channel: 'PHONE',
+      reference: 'atendimento 4471',
+      rightNumeral: 'VI',
+      description: 'Pediu por telefone a eliminação dos dados de contato.',
+      attachments: [],
+    })
+
+    expect((calls[0]!.body as { fields: Record<string, string[]> }).fields).toMatchObject({
+      dataSubjectEmail: ['titular@exemplo.com.br'],
+      channel: ['PHONE'],
+      channelDetails: ['atendimento 4471'],
+      rights: ['CONSENTED_DATA_DELETION'],
+    })
+    expect(receipt).toMatchObject({ immediate: false, origin: { channel: 'PHONE' } })
   })
 
-  it('recusa um motivo curto demais', async () => {
-    await expect(cancelRequests([idOf('2026-000431')], 'não quero')).rejects.toThrow(
-      'O motivo precisa de pelo menos 10 caracteres.',
-    )
+  it('repassa a recusa do servidor quando o titular não tem conta', async () => {
+    mockApi([
+      route(
+        'POST',
+        '/organizations/org-1/requests',
+        problem(422, 'Não há conta ativa e com e-mail confirmado para este endereço.'),
+      ),
+    ])
+
+    await expect(
+      registerOnBehalf({
+        subjectEmail: 'sem-conta@exemplo.com.br',
+        identityVerified: true,
+        channel: 'EMAIL',
+        rightNumeral: 'III',
+        description: 'Pedido recebido por e-mail para correção de endereço.',
+        attachments: [],
+      }),
+    ).rejects.toMatchObject({ status: 422 })
+  })
+})
+
+describe('requestService · conversa e encerramento', () => {
+  it('envia, edita e exclui mensagens pelas rotas da requisição', async () => {
+    const { calls } = mockApi([
+      route('POST', '/requests/r1/messages', apiMessage({ body: 'Olá' })),
+      route('PATCH', '/requests/r1/messages/m1', apiMessage({ body: 'Olá de novo', edited: true })),
+      route('DELETE', '/requests/r1/messages/m1', { status: 204 }),
+    ])
+
+    const sent = await sendMessage('r1', { text: '  Olá  ' })
+    const edited = await editMessage('r1', 'm1', 'Olá de novo')
+    await deleteMessage('r1', 'm1')
+
+    expect(sent.text).toBe('Olá')
+    expect(edited.editedAt).toBeUndefined()
+    expect(calls.map((call) => call.method)).toEqual(['POST', 'PATCH', 'DELETE'])
+    expect(calls[1]!.body).toEqual({ body: 'Olá de novo' })
+  })
+
+  it('finaliza com o parecer e o resultado anexado', async () => {
+    const { calls } = mockApi([route('POST', '/requests/r1/complete', { id: 'r1' })])
+    const file = new File(['x'], 'resultado.pdf', { type: 'application/pdf' })
+
+    await answerRequest('r1', {
+      text: 'Dados eliminados.',
+      attachments: [{ name: 'resultado.pdf', meta: '', file }],
+    })
+
+    expect(calls[0]!.body).toEqual({ fields: { body: ['Dados eliminados.'] }, files: ['resultado.pdf'] })
+  })
+
+  it('cancela em lote e separa o que ficou de fora', async () => {
+    const { calls } = mockApi([
+      route('POST', '/me/requests/cancel', {
+        cancelled: [
+          {
+            id: 'r1',
+            protocolNumber: '2026-000101',
+            status: 'CANCELLED',
+            closedAt: isoFromNow(0),
+            dueAt: isoFromNow(HOUR),
+            onTime: true,
+          },
+        ],
+        rejected: [{ id: 'r2', protocolNumber: '2026-000102', reason: 'NOT_OPEN' }],
+      }),
+    ])
+
+    const result = await cancelRequests(['r1', 'r2'], '  Resolvi direto com a empresa.  ')
+
+    expect(calls[0]!.body).toEqual({ ids: ['r1', 'r2'], reason: 'Resolvi direto com a empresa.' })
+    expect(result.cancelled).toEqual([{ id: 'r1', protocol: '2026-000101' }])
+    expect(result.skipped).toEqual([{ id: 'r2', protocol: '2026-000102', reason: 'NOT_OPEN' }])
   })
 })

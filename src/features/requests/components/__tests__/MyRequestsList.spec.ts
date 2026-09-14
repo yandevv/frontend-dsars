@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { mount, RouterLinkStub } from '@vue/test-utils'
 
 import MyRequestsList from '../MyRequestsList.vue'
-import { DEMO_REQUESTS } from '@/features/requests/data/requests'
-import { ownRequests, sortForTitular } from '@/features/requests/composables/useMyRequests'
+import { sortForTitular } from '@/features/requests/composables/useMyRequests'
+import { titularRequests } from '@/test/factories'
 
-const requests = sortForTitular(ownRequests(DEMO_REQUESTS, 'titular@exemplo.com.br'))
+const requests = sortForTitular(titularRequests())
 
 function render(selected: string[] = []) {
   return mount(MyRequestsList, {

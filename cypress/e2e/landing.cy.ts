@@ -29,6 +29,21 @@ describe('Página inicial pública', () => {
       })
   })
 
+  it('usa o nome e o contato da organização que a API devolve', () => {
+    cy.intercept('GET', '/api/public/organizations/demonstracao', {
+      body: {
+        slug: 'demonstracao',
+        name: 'Organização Demonstração',
+        dpo: { name: 'Ana Lima', email: 'dpo@demonstracao.test', phone: null },
+        rightsGuidance: 'Envie seu pedido pelo portal.',
+      },
+    })
+    cy.visit('/')
+
+    cy.get('header').should('contain', 'Organização Demonstração')
+    cy.get('a[href^="mailto:"]').first().should('have.attr', 'href', 'mailto:dpo@demonstracao.test')
+  })
+
   it('permite falar com a encarregada sem precisar de conta', () => {
     cy.get('a[href^="mailto:"]').should('have.attr', 'href', 'mailto:dpo@meridianosaude.org.br')
     cy.get('a[href^="tel:"]').should('have.attr', 'href', 'tel:+551637110480')

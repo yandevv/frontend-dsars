@@ -6,7 +6,7 @@ import { findOriginChannel } from '@/features/requests/constants/originChannels'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { downloadText } from '@/shared/utils/download'
 import { formatDue } from '@/features/requests/utils/responseDeadline'
-import { formatDate, formatDateTime } from '@/shared/utils/date'
+import { formatDateTime } from '@/shared/utils/date'
 import type { OnBehalfReceipt } from '@/features/requests/types/request'
 
 /**
@@ -25,7 +25,7 @@ const right = computed(() => findRight(receipt.rightNumeral))
 
 const lines = computed(() => [
   { label: 'Protocolo', value: receipt.protocol },
-  { label: 'Titular', value: receipt.subjectName },
+  { label: 'Conta do titular', value: receipt.subjectEmail },
   { label: 'Direito exercido', value: right.value?.requestLabel ?? receipt.rightNumeral },
   {
     label: 'Canal de origem',
@@ -33,20 +33,13 @@ const lines = computed(() => [
       ? `${channel.value.label} · ${receipt.origin.reference}`
       : channel.value.label,
   },
-  { label: 'Recebido em', value: formatDate(receipt.origin.receivedAt) },
   { label: 'Prazo legal', value: `até ${formatDue(receipt.dueAt, receipt.immediate)}` },
-  {
-    label: 'Registrado por',
-    value: `${receipt.origin.registeredBy} · encarregada de dados · ${formatDateTime(receipt.registeredAt)}`,
-  },
+  { label: 'Registrado em', value: formatDateTime(receipt.registeredAt) },
   { label: 'Identificador', value: receipt.id },
 ])
 
-const subjectNotice = computed(() =>
-  receipt.subjectHasAccount
-    ? 'A requisição já aparece na lista do titular, com aviso de que foi registrada pela encarregada a pedido dele, e o protocolo foi enviado como notificação.'
-    : 'O titular não tem conta no portal: entregue ou envie o comprovante com protocolo e prazo pelo mesmo canal em que o pedido chegou.',
-)
+const subjectNotice =
+  'A requisição já aparece na lista do titular, com aviso de que foi registrada pela encarregada a pedido dele, e o protocolo foi enviado como notificação.'
 
 /** O comprovante para entregar ao titular sem conta — protocolo, prazo e origem. */
 function download() {
@@ -73,12 +66,11 @@ function download() {
         Requisição registrada
       </p>
       <h1 class="font-serif text-[26px] font-semibold leading-tight text-ink sm:text-[32px]">
-        Protocolo {{ receipt.protocol }} criado em nome de {{ receipt.subjectName }}
+        Protocolo {{ receipt.protocol }} criado para {{ receipt.subjectEmail }}
       </h1>
       <p class="text-base leading-relaxed text-ink-body">
-        A requisição entrou na fila com você como responsável, marcada como registro por terceiro.
-        O prazo legal vai até {{ formatDue(receipt.dueAt, receipt.immediate) }}, contado do recebimento em
-        {{ formatDate(receipt.origin.receivedAt) }}.
+        A requisição entrou na fila marcada como registro por terceiro. O prazo legal vai até
+        {{ formatDue(receipt.dueAt, receipt.immediate) }}, contado do registro.
       </p>
     </div>
 
@@ -155,7 +147,7 @@ function download() {
         aria-hidden="true"
         class="w-[3px] shrink-0 self-stretch bg-field-disabled-line"
       />
-      Na trilha de auditoria: registro por terceiro · autora {{ receipt.origin.registeredBy }} ·
+      Na trilha de auditoria: registro por terceiro vinculado à sua conta ·
       {{ formatDateTime(receipt.registeredAt) }} · pedido recebido {{ channel.phrase }}. Arquive o
       documento original conforme a política de guarda.
     </p>

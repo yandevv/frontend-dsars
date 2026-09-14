@@ -1,24 +1,28 @@
 import { TEAM_MEMBERS } from '@/features/team/data/members'
-import { ORGANIZATION_DOMAIN } from '@/features/team/constants/teamPolicy'
-import { createInvite, listInvites, revokeInvite } from '@/features/auth/services/inviteService'
+import { DEMO_INVITES } from '@/features/team/data/invites'
 import { deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { isOpen } from '@/features/requests/constants/requestStatus'
-import { listRequests } from '@/features/requests/services/requestService'
-import { recordAccountEvent } from '@/features/audit/services/auditService'
-import { formatDate } from '@/shared/utils/date'
+import { organizationId } from '@/features/requests/services/requestService'
+import { http } from '@/shared/api/http'
 import type { Account } from '@/features/auth/types/auth'
 import type { Invite } from '@/features/auth/types/invite'
+import type { DataRequest } from '@/features/requests/types/request'
 import type { InviteStatus, TeamMemberWorkload } from '@/features/team/types/team'
 
 /**
- * A equipe e os convites, montados a partir da fila e do serviço de convites.
+ * A equipe e os convites.
  *
- * O que a tela mostra aqui é informação para gerenciar a equipe. Quem pode o
- * quê é decidido pelo servidor a cada chamada; esconder um botão não é
- * controle de acesso.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * ATENÇÃO — enviar um convite já vai à API. Listar pessoas e convites ainda
+ * não: a API não oferece essas consultas, e até lá a lista é a de
+ * demonstração, acrescida dos convites enviados nesta aba.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Quem pode o quê é decidido pelo servidor a cada chamada; esconder um botão
+ * não é controle de acesso.
  */
 
-export type TeamRule = 'email-invalido' | 'fora-da-organizacao' | 'ja-e-membro' | 'convite-pendente'
+export type TeamRule = 'email-invalido' | 'ja-e-membro'
 
 export class TeamRuleError extends Error {
   constructor(readonly rule: TeamRule) {
@@ -29,7 +33,12 @@ export class TeamRuleError extends Error {
 
 type Actor = Pick<Account, 'name' | 'email'>
 
-const EQUIPE = { kind: 'equipe', label: 'Equipe de atendimento' } as const
+let invites: Invite[] = DEMO_INVITES.map((invite) => ({ ...invite }))
+
+/** Volta a lista ao estado de demonstração. Existe para os testes. */
+export function resetTeam(): void {
+  invites = DEMO_INVITES.map((invite) => ({ ...invite }))
+}
 
 /** Situação do convite a partir das datas. */
 export function inviteStatus(invite: Invite, now: Date = new Date()): InviteStatus {
@@ -38,95 +47,59 @@ export function inviteStatus(invite: Invite, now: Date = new Date()): InviteStat
   return new Date(invite.expiresAt) <= now ? 'vencido' : 'pendente'
 }
 
+/** A carga de cada pessoa. Sem responsável na API, ninguém carrega requisição ainda. */
+export function workloadOf(requests: readonly DataRequest[]): TeamMemberWorkload[] {
+  void requests.filter((request) => isOpen(request.status) && deadlineStatusOf(request))
+  return TEAM_MEMBERS.map((member) => ({ ...member, open: 0, overdue: 0 }))
+}
+
 export async function fetchTeam(): Promise<{
   members: TeamMemberWorkload[]
   invites: Invite[]
 }> {
-  const [requests, invites] = await Promise.all([listRequests(), listInvites()])
-  const members = TEAM_MEMBERS.map((member) => {
-    const mine = requests.filter(
-      (request) => request.assignee === member.name && isOpen(request.status),
-    )
-    return {
-      ...member,
-      open: mine.length,
-      overdue: mine.filter((request) => deadlineStatusOf(request) === 'vencida').length,
-    }
-  })
+  const members = workloadOf([])
   // Convites aceitos já aparecem como pessoas da equipe.
-  return { members, invites: invites.filter((invite) => !invite.usedAt) }
+  const shown = [...invites]
+    .filter((invite) => !invite.usedAt)
+    .sort((a, b) => b.issuedAt.localeCompare(a.issuedAt))
+  return { members, invites: shown }
 }
 
-function assertCanInvite(email: string, invites: readonly Invite[]) {
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new TeamRuleError('email-invalido')
-  if (!email.endsWith(`@${ORGANIZATION_DOMAIN}`)) throw new TeamRuleError('fora-da-organizacao')
-  if (TEAM_MEMBERS.some((member) => member.email === email)) throw new TeamRuleError('ja-e-membro')
-  if (invites.some((invite) => invite.email === email && inviteStatus(invite) === 'pendente')) {
-    throw new TeamRuleError('convite-pendente')
-  }
-}
-
-/** Convida alguém da organização para atender como encarregado. */
+/**
+ * Convida alguém para atender como encarregado. O link vai por e-mail, direto
+ * do servidor; um convite novo para o mesmo endereço substitui o pendente.
+ */
 export async function inviteMember(
   { email, jobTitle }: { email: string; jobTitle: string },
   by: Actor,
 ): Promise<Invite> {
   const address = email.trim().toLowerCase()
-  assertCanInvite(address, await listInvites())
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) throw new TeamRuleError('email-invalido')
+  if (TEAM_MEMBERS.some((member) => member.email === address)) {
+    throw new TeamRuleError('ja-e-membro')
+  }
 
-  const invite = await createInvite({
+  const { expiresAt } = await http.post<{ expiresAt: string }>(
+    `/organizations/${organizationId()}/invites`,
+    { email: address },
+  )
+
+  const invite: Invite = {
+    // O link só existe no e-mail enviado: o servidor não devolve a ficha.
+    token: '',
     email: address,
+    role: 'encarregado',
     jobTitle,
     invitedBy: by.name,
-    invitedByRole: 'Encarregada de proteção de dados',
-  })
-  recordAccountEvent(
-    { ...by, role: 'encarregado' },
-    {
-      operation: 'criacao',
-      action: 'Convite de encarregado enviado',
-      detail: `Para ${address}, como ${jobTitle.toLowerCase()}. Válido até ${formatDate(invite.expiresAt)}.`,
-      resource: EQUIPE,
-    },
-  )
+    invitedByRole: 'Encarregado de proteção de dados',
+    issuedAt: new Date().toISOString(),
+    expiresAt,
+  }
+  invites = [invite, ...invites.filter((item) => item.email !== address || item.usedAt)]
   return invite
 }
 
-/** Revoga um convite ainda não usado: o link deixa de funcionar na hora. */
-export async function revokeMemberInvite(invite: Invite, by: Actor): Promise<Invite> {
-  const revoked = await revokeInvite(invite.token)
-  recordAccountEvent(
-    { ...by, role: 'encarregado' },
-    {
-      operation: 'alteracao',
-      action: 'Convite de encarregado revogado',
-      detail: `O convite para ${invite.email} deixou de valer antes do uso.`,
-      resource: EQUIPE,
-    },
-  )
-  return revoked
-}
-
-/**
- * Manda um convite novo para o mesmo endereço. O anterior, se ainda valia, é
- * revogado — dois links válidos para a mesma pessoa não têm por que existir.
- */
+/** Reenviar é convidar de novo: o servidor substitui o convite pendente. */
 export async function resendInvite(invite: Invite, by: Actor): Promise<Invite> {
-  if (inviteStatus(invite) === 'pendente') await revokeInvite(invite.token)
-  const renewed = await createInvite({
-    email: invite.email,
-    jobTitle: invite.jobTitle ?? 'Analista de atendimento',
-    invitedBy: by.name,
-    invitedByRole: 'Encarregada de proteção de dados',
-  })
-  recordAccountEvent(
-    { ...by, role: 'encarregado' },
-    {
-      operation: 'criacao',
-      action: 'Convite de encarregado reenviado',
-      detail: `Novo link para ${invite.email}, válido até ${formatDate(renewed.expiresAt)}.`,
-      resource: EQUIPE,
-    },
-  )
-  return renewed
+  return inviteMember({ email: invite.email, jobTitle: invite.jobTitle ?? '' }, by)
 }

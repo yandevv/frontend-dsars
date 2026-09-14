@@ -164,8 +164,8 @@ const index = computed(() => [
               Falar com a encarregada
             </h2>
             <p class="max-w-[72ch] text-base leading-relaxed text-ink-body">
-              Se a ajuda não respondeu, fale direto com quem responde pelos pedidos
-              {{ tenant.article.toLowerCase() === 'o' ? 'no' : 'na' }} {{ tenant.name }}.
+              Se a ajuda não respondeu, fale direto com quem responde pelos pedidos da
+              organização: {{ tenant.name }}.
             </p>
             <!-- O cartão desfaz o respiro lateral no celular; este invólucro o devolve. -->
             <div class="max-w-[520px] px-5 lg:px-0">

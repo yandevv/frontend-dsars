@@ -1,20 +1,61 @@
-import { NOTIFICATION_EVENTS, defaultPreferences } from '@/features/settings/constants/notificationEvents'
-import { delay } from '@/features/auth/services/fakeNetwork'
-import { normalizeEmail } from '@/features/auth/data/accounts'
-import { recordAccountEvent } from '@/features/audit/services/auditService'
-import type { NotificationPreferences } from '@/features/settings/types/preferences'
+import { http } from '@/shared/api/http'
+import type { ApiEventPreference, ApiNotificationChannel } from '@/shared/api/contracts'
+import type {
+  NotificationChannel,
+  NotificationPreferences,
+  PreferenceEvent,
+} from '@/features/settings/types/preferences'
 
 /**
- * ─────────────────────────────────────────────────────────────────────────────
- * ATENÇÃO — aqui entra a API de preferências de notificação.
+ * Preferências de notificação (RF020 / RF021).
  *
- * O servidor é quem decide o que enviar; a matriz só registra a vontade da
- * pessoa. Mesmo que alguém force o envio de um canal obrigatório desligado,
- * o serviço o devolve ligado — a regra não depende da tela.
- * ─────────────────────────────────────────────────────────────────────────────
+ * O servidor devolve o catálogo de eventos do perfil, com os canais em que
+ * cada um sai e quais são obrigatórios. A matriz só registra a vontade da
+ * pessoa: mesmo que alguém force o desligamento de um canal obrigatório, o
+ * servidor o recusa — a regra não depende da tela.
  */
 
-const stored = new Map<string, NotificationPreferences>()
+const CHANNEL: Record<ApiNotificationChannel, NotificationChannel> = {
+  EMAIL: 'email',
+  IN_APP: 'portal',
+}
+
+const API_CHANNEL: Record<NotificationChannel, ApiNotificationChannel> = {
+  email: 'EMAIL',
+  portal: 'IN_APP',
+}
+
+export interface PreferenceMatrix {
+  events: PreferenceEvent[]
+  preferences: NotificationPreferences
+}
+
+function toMatrix(events: ApiEventPreference[]): PreferenceMatrix {
+  const mapped = events.map<PreferenceEvent>((event) => ({
+    id: event.eventType,
+    label: event.label,
+    description: event.description,
+    channels: Object.fromEntries(
+      event.channels.map((channel) => [
+        CHANNEL[channel.channel],
+        { enabled: channel.enabled, mandatory: channel.mandatory },
+      ]),
+    ),
+  }))
+  return { events: mapped, preferences: preferencesOf(mapped) }
+}
+
+/** A matriz ligada/desligada, lida do catálogo. */
+export function preferencesOf(events: readonly PreferenceEvent[]): NotificationPreferences {
+  return Object.fromEntries(
+    events.map((event) => [
+      event.id,
+      Object.fromEntries(
+        Object.entries(event.channels).map(([channel, setting]) => [channel, setting.enabled]),
+      ),
+    ]),
+  )
+}
 
 /**
  * Cópia rasa por evento. Serve também à tela: `structuredClone` não copia o
@@ -23,37 +64,43 @@ const stored = new Map<string, NotificationPreferences>()
 export function clonePreferences(preferences: NotificationPreferences): NotificationPreferences {
   return Object.fromEntries(
     Object.entries(preferences).map(([event, channels]) => [event, { ...channels }]),
-  ) as NotificationPreferences
-}
-
-/** Liga de volta todo canal obrigatório, venha a matriz de onde vier. */
-export function enforceLocked(preferences: NotificationPreferences): NotificationPreferences {
-  const result = clonePreferences(preferences)
-  for (const event of NOTIFICATION_EVENTS) {
-    for (const channel of event.locked) result[event.id][channel] = true
-  }
-  return result
-}
-
-export async function fetchPreferences(email: string): Promise<NotificationPreferences> {
-  await delay()
-  return clonePreferences(stored.get(normalizeEmail(email)) ?? defaultPreferences())
-}
-
-export async function savePreferences(
-  email: string,
-  preferences: NotificationPreferences,
-): Promise<NotificationPreferences> {
-  await delay()
-  const saved = enforceLocked(preferences)
-  stored.set(normalizeEmail(email), saved)
-  recordAccountEvent(
-    { email },
-    {
-      operation: 'alteracao',
-      action: 'Preferências de notificação alteradas',
-      detail: 'Canais por evento salvos. As comunicações obrigatórias continuam por e-mail.',
-    },
   )
-  return clonePreferences(saved)
+}
+
+/** O padrão do portal: tudo ligado, como uma conta nova começa. */
+export function defaultPreferences(events: readonly PreferenceEvent[]): NotificationPreferences {
+  return Object.fromEntries(
+    events.map((event) => [
+      event.id,
+      Object.fromEntries(Object.keys(event.channels).map((channel) => [channel, true])),
+    ]),
+  )
+}
+
+export async function fetchPreferences(): Promise<PreferenceMatrix> {
+  const { events } = await http.get<{ events: ApiEventPreference[] }>(
+    '/me/notification-preferences',
+  )
+  return toMatrix(events)
+}
+
+/** Envia só as células opcionais: as obrigatórias o servidor mantém ligadas. */
+export async function savePreferences(
+  events: readonly PreferenceEvent[],
+  preferences: NotificationPreferences,
+): Promise<PreferenceMatrix> {
+  const changes = events.flatMap((event) =>
+    Object.entries(event.channels)
+      .filter(([, setting]) => !setting.mandatory)
+      .map(([channel]) => ({
+        eventType: event.id,
+        channel: API_CHANNEL[channel as NotificationChannel],
+        enabled: preferences[event.id]?.[channel as NotificationChannel] ?? true,
+      })),
+  )
+  const { events: saved } = await http.put<{ events: ApiEventPreference[] }>(
+    '/me/notification-preferences',
+    { preferences: changes },
+  )
+  return toMatrix(saved)
 }

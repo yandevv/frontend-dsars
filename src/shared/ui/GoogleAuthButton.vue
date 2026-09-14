@@ -1,20 +1,25 @@
 <script setup lang="ts">
+import { apiUrl } from '@/shared/api/http'
+
 /**
- * Entrada por conta Google, como no design.
+ * Entrada por conta Google.
  *
- * ATENÇÃO: o botão está com a aparência ativa, mas **não há provedor de
- * identidade ligado** — clicar não faz nada. É assim de propósito, para que as
- * telas sirvam de ilustração do produto pronto; quando o provedor existir, a
- * chamada entra aqui e nada mais precisa mudar. Enquanto isso, ele não deve ir
- * para um ambiente onde alguém tente usá-lo de verdade.
+ * O botão só leva o navegador à API, que conduz a ida e a volta pelo Google e
+ * devolve a pessoa a `/entrar/google/sucesso`, `/entrar/google/erro` ou, na
+ * primeira vez, a `/cadastro/google` para aceitar os termos.
  */
-defineProps<{ label: string }>()
+const { rememberMe = false } = defineProps<{ label: string; rememberMe?: boolean }>()
+
+function start() {
+  window.location.assign(apiUrl('/auth/google', { rememberMe: rememberMe ? 'true' : undefined }))
+}
 </script>
 
 <template>
   <button
     type="button"
     class="flex w-full items-center justify-center gap-2.5 border border-field-line bg-surface px-5 py-[15px] text-base font-medium text-ink transition-colors hover:border-brand hover:text-brand"
+    @click="start"
   >
     <!--
       Marca do Google em SVG, nas cores oficiais. Fica embutida em vez de vir

@@ -3,13 +3,13 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 
 import RequestMessages from "../RequestMessages.vue";
-import type { MessageActor, RequestMessage } from "@/features/requests/types/request";
+import type { RequestMessage } from "@/features/requests/types/request";
 
 /** O último item — `Array.prototype.at` fica fora da versão da biblioteca do projeto. */
 const last = <T>(list: readonly T[]): T | undefined => list[list.length - 1]
 
 
-const MARINA: MessageActor = { name: "Marina Torres de Almeida", role: "titular" };
+const MARINA = "Marina Torres de Almeida";
 
 const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 
@@ -17,47 +17,51 @@ const messages: RequestMessage[] = [
   {
     id: "m2",
     kind: "mensagem",
-    author: MARINA.name,
+    author: MARINA,
     authorRole: "titular",
     text: "Só as campanhas.",
     attachments: [],
     sentAt: minutesAgo(5),
+    mine: true,
+    editableUntil: new Date(Date.now() + 25 * 60_000).toISOString(),
   },
   {
     id: "m1",
-    kind: "complemento",
+    kind: "mensagem",
     author: "Beatriz Falcão Ribeiro",
     authorRole: "encarregado",
     text: "Precisamos saber se os lembretes também devem parar.",
-    attachments: [],
+    attachments: [{ id: "a1", name: "orientacao.pdf", meta: "PDF · 20 KB" }],
     sentAt: minutesAgo(60),
-  },
-  {
-    id: "m0",
-    kind: "mensagem",
-    author: MARINA.name,
-    authorRole: "titular",
-    text: "Mensagem excluída antes.",
-    attachments: [],
-    sentAt: minutesAgo(90),
-    deletedAt: minutesAgo(80),
+    mine: false,
   },
   {
     id: "m3",
     kind: "mensagem",
-    author: MARINA.name,
+    author: MARINA,
     authorRole: "titular",
     text: "Enviada há mais de meia hora.",
     attachments: [],
     sentAt: minutesAgo(45),
     editedAt: minutesAgo(40),
+    mine: true,
+  },
+  {
+    id: "m4",
+    kind: "parecer",
+    author: "Beatriz Falcão Ribeiro",
+    authorRole: "encarregado",
+    text: "Parecer anterior à reabertura.",
+    attachments: [],
+    sentAt: minutesAgo(120),
+    mine: false,
   },
 ];
 
 function render(props: { open?: boolean; mode?: "mensagem" | "complemento" } = {}) {
   return mount(RequestMessages, {
     attachTo: document.body,
-    props: { messages, viewer: MARINA, open: props.open ?? true, mode: props.mode },
+    props: { messages, open: props.open ?? true, mode: props.mode },
   });
 }
 
@@ -70,21 +74,31 @@ describe("RequestMessages", () => {
     document.body.innerHTML = "";
   });
 
-  it("mostra a conversa em ordem cronológica, sem as excluídas", () => {
+  it("mostra a conversa em ordem cronológica", () => {
     const wrapper = render();
 
     const texts = wrapper.findAll("ol > li").map((li) => li.text());
-    expect(texts).toHaveLength(3);
-    expect(texts[0]).toContain("Precisamos saber");
-    expect(texts[2]).toContain("Só as campanhas.");
-    expect(wrapper.text()).not.toContain("Mensagem excluída antes.");
+    expect(texts).toHaveLength(4);
+    expect(texts[0]).toContain("Parecer anterior");
+    expect(texts[3]).toContain("Só as campanhas.");
   });
 
-  it("sinaliza pedido de complemento e mensagem editada", () => {
+  it("sinaliza o parecer final e a mensagem editada", () => {
     const wrapper = render();
 
-    expect(item(wrapper, "Precisamos saber").text()).toContain("Pedido de complemento");
+    expect(item(wrapper, "Parecer anterior").text()).toContain("Parecer final");
     expect(item(wrapper, "Enviada há mais de meia hora.").text()).toContain("editada");
+  });
+
+  it("baixa o anexo guardado pelo identificador", async () => {
+    const wrapper = render();
+
+    await item(wrapper, "Precisamos saber")
+      .findAll("button")
+      .find((b) => b.text().startsWith("Baixar"))!
+      .trigger("click");
+
+    expect(wrapper.emitted("download")?.[0]).toEqual(["a1"]);
   });
 
   it("oferece editar só a própria mensagem dentro da meia hora; excluir, a própria sempre", () => {
@@ -186,6 +200,7 @@ describe("RequestMessages", () => {
 
     expect(wrapper.text()).toContain("Pedido de complemento ao titular");
     expect(wrapper.text()).toContain("Enviar pedido de complemento");
+    expect(wrapper.text()).toContain("o prazo legal continua correndo");
     expect(wrapper.text()).toContain("Voltar à mensagem comum");
   });
 });

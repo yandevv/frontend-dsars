@@ -6,9 +6,7 @@ import AppBreadcrumb from "@/shared/layout/AppBreadcrumb.vue";
 import AppShell from "@/shared/layout/AppShell.vue";
 import BaseButton from "@/shared/ui/BaseButton.vue";
 import RequestAnswerPanel from "@/features/requests/components/RequestAnswerPanel.vue";
-import RequestAssigneeCard from "@/features/requests/components/RequestAssigneeCard.vue";
 import RequestDeadlineCard from "@/features/requests/components/RequestDeadlineCard.vue";
-import RequestInternalNotes from "@/features/requests/components/RequestInternalNotes.vue";
 import RequestMessages from "@/features/requests/components/RequestMessages.vue";
 import RequestSentAnswer from "@/features/requests/components/RequestSentAnswer.vue";
 import RequestStatusChip from "@/features/requests/components/RequestStatusChip.vue";
@@ -23,17 +21,13 @@ import { formatDate } from "@/shared/utils/date";
 import { isOpen } from "@/features/requests/constants/requestStatus";
 import {
   answerRequest,
+  downloadAttachment,
   fetchRequest,
-  listRequests,
-  reassignRequest,
+  listOrganizationRequests,
 } from "@/features/requests/services/requestService";
 import { useRequestMessages } from "@/features/requests/composables/useRequestMessages";
-import { useSession } from "@/features/auth/composables/useSession";
-import type {
-  DataRequest,
-  RequestAttachment,
-  RequestOutcome,
-} from "@/features/requests/types/request";
+import { messageOf } from "@/shared/api/ApiError";
+import type { DataRequest, RequestAttachment } from "@/features/requests/types/request";
 
 /**
  * Turno 1 · Tela 11 — Detalhe da requisição na visão do encarregado
@@ -41,11 +35,10 @@ import type {
  *
  * É a mesma página que o titular vê, com finalizar atendimento no lugar de
  * cancelar: cancelar é ato do titular (RF010), e nenhuma ação daqui apaga a
- * requisição — o que existe é responder, pedir complemento e reatribuir, tudo
- * com registro na trilha.
+ * requisição — o que existe é conversar com o titular e responder, tudo com
+ * registro na trilha.
  */
 const route = useRoute();
-const { account } = useSession("encarregado");
 
 const request = ref<DataRequest | null>(null);
 const others = ref<readonly DataRequest[]>([]);
@@ -65,11 +58,13 @@ const open = computed(() => (request.value ? isOpen(request.value.status) : fals
 const answerSheet = useTemplateRef<HTMLElement>("answerSheet");
 
 // ── Conversa ─────────────────────────────────────────────────────────────────
-const viewer = computed(() => ({ name: account.value.name, role: "encarregado" as const }));
-const messages = useRequestMessages(request, viewer);
+const messages = useRequestMessages(request);
 const messagesPanel = useTemplateRef<InstanceType<typeof RequestMessages>>("messagesPanel");
 
-/** Pedir complemento é escrever ao titular: o campo da conversa muda de modo. */
+/**
+ * Pedir complemento é escrever ao titular: o campo da conversa muda de modo,
+ * e a mensagem sai como qualquer outra — a requisição segue aberta.
+ */
 const complementMode = ref(false);
 
 async function askForComplement() {
@@ -80,17 +75,27 @@ async function askForComplement() {
 }
 
 async function sendMessage(message: { text: string; attachments: RequestAttachment[] }) {
-  const kind = complementMode.value ? "complemento" : "mensagem";
-  if (!(await messages.send(message, kind))) return;
+  const complement = complementMode.value;
+  if (!(await messages.send(message))) return;
 
   messagesPanel.value?.reset();
   complementMode.value = false;
-  if (kind === "complemento") {
+  if (complement) {
     notice.value = {
       title: "Complemento solicitado ao titular",
       text: "A requisição continua na fila e o prazo legal segue correndo. Finalizar atendimento permanece disponível.",
       tone: "ok",
     };
+  }
+}
+
+async function download(attachmentId: string) {
+  const current = request.value;
+  if (!current) return;
+  try {
+    await downloadAttachment(current.id, attachmentId);
+  } catch (error) {
+    notice.value = { title: "Não foi possível baixar o anexo", text: messageOf(error), tone: "danger" };
   }
 }
 
@@ -106,7 +111,7 @@ const overdueNotice = computed<Notice | null>(() => {
 
   return {
     title: "Requisição fora do prazo legal",
-    text: `O prazo legal venceu em ${formatDue(current.dueAt, requestIsImmediate(current))}. Finalize o atendimento hoje e registre a causa do atraso na nota interna — o relatório à diretoria usa esse campo.`,
+    text: `O prazo legal venceu em ${formatDue(current.dueAt, requestIsImmediate(current))}. Finalize o atendimento o quanto antes — o atraso aparece no relatório gerencial.`,
     tone: "danger",
   };
 });
@@ -143,8 +148,10 @@ async function load(id: string) {
   try {
     const found = await fetchRequest(id);
     request.value = found;
-    others.value = (await listRequests()).filter(
-      (item) => item.id !== found.id && item.subject.email === found.subject.email,
+    // As outras requisições do mesmo titular são contexto: se a fila falhar,
+    // o detalhe abre do mesmo jeito.
+    others.value = (await listOrganizationRequests().catch(() => [])).filter(
+      (item) => item.id !== found.id && !!found.subject.id && item.subject.id === found.subject.id,
     );
   } catch {
     request.value = null;
@@ -162,41 +169,29 @@ watch(
   { immediate: true },
 );
 
-async function finish(answer: {
-  outcome: RequestOutcome;
-  text: string;
-  legalBasis?: string;
-  attachments: RequestAttachment[];
-}) {
+async function finish(answer: { text: string; attachments: RequestAttachment[] }) {
   const current = request.value;
   if (!current || sending.value) return;
 
   sending.value = true;
   try {
-    request.value = {
-      ...(await answerRequest(current.id, { ...answer, author: account.value.name })),
-    };
+    await answerRequest(current.id, answer);
+    request.value = await fetchRequest(current.id);
     panelOpen.value = false;
     notice.value = {
       title: "Atendimento finalizado",
       text: "O titular foi notificado no portal e por e-mail. A requisição saiu da fila e a pesquisa de satisfação está liberada.",
       tone: "ok",
     };
+  } catch (error) {
+    notice.value = {
+      title: "Não foi possível finalizar o atendimento",
+      text: messageOf(error),
+      tone: "danger",
+    };
   } finally {
     sending.value = false;
   }
-}
-
-async function reassign(to: string) {
-  const current = request.value;
-  if (!current) return;
-
-  request.value = { ...(await reassignRequest(current.id, { to })) };
-  notice.value = {
-    title: "Requisição reatribuída",
-    text: `${to} recebeu a notificação com o prazo restante. A troca ficou registrada na trilha de auditoria.`,
-    tone: "ok",
-  };
 }
 </script>
 
@@ -286,7 +281,7 @@ async function reassign(to: string) {
 
         <div class="grid items-start gap-7 xl:grid-cols-[minmax(0,1fr)_380px]">
           <div class="flex flex-col gap-6">
-            <RequestSubjectRequest :request="request" />
+            <RequestSubjectRequest :request="request" @download="download" />
 
             <div
               v-if="panelOpen && open"
@@ -310,7 +305,7 @@ async function reassign(to: string) {
               <RequestAnswerPanel :sending="sending" @close="panelOpen = false" @submit="finish" />
             </div>
 
-            <RequestSentAnswer v-if="request.answer" :answer="request.answer" />
+            <RequestSentAnswer v-if="request.answer" :answer="request.answer" @download="download" />
 
             <p v-if="messages.error.value" role="alert" class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body">
               {{ messages.error.value }}
@@ -318,31 +313,23 @@ async function reassign(to: string) {
             <RequestMessages
               ref="messagesPanel"
               :messages="request.messages"
-              :viewer="viewer"
               :open="open"
               :mode="complementMode ? 'complemento' : 'mensagem'"
               :sending="messages.sending.value"
               @send="sendMessage"
               @edit="messages.edit"
               @remove="messages.remove"
+              @download="download"
               @cancel-complement="complementMode = false"
             />
 
             <RequestTimeline :entries="request.timeline" />
-
-            <RequestInternalNotes :notes="request.notes" />
           </div>
 
           <div class="flex flex-col gap-[18px]">
             <RequestDeadlineCard :request="request" />
 
             <RequestSubjectCard :subject="request.subject" :others="others" />
-
-            <RequestAssigneeCard
-              :assignee="request.assignee"
-              :disabled="!open"
-              @reassign="reassign"
-            />
 
             <section
               v-if="open"

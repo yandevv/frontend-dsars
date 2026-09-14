@@ -7,7 +7,6 @@ import {
   DEADLINE_ROW_CLASSES,
   DEADLINE_TEXT_CLASSES,
 } from '@/features/requests/constants/deadlineStyles'
-import { abbreviateName } from '@/shared/utils/name'
 import { deadlineLabel, deadlineStatusOf } from '@/features/requests/utils/deadline'
 import { findRight } from '@/shared/constants/lgpdRights'
 import { formatDate } from '@/shared/utils/date'
@@ -30,7 +29,7 @@ const headers = [
   'Titular e direito',
   'Estado',
   'Prazo legal',
-  'Registro e responsável',
+  'Registro',
 ]
 
 const allSelected = computed(
@@ -139,9 +138,6 @@ function toggle(id: string) {
         <td class="py-[18px] pr-4 align-middle">
           <p class="text-sm text-ink-body">
             Registrada em {{ formatDate(request.registeredAt) }}
-          </p>
-          <p class="text-[13px] text-ink-muted">
-            {{ request.assignee ? abbreviateName(request.assignee) : 'Sem responsável' }}
           </p>
         </td>
         <td class="px-4 py-[18px] text-right align-middle">

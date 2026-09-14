@@ -1,33 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-
-import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import InviteBond from '@/features/auth/components/InviteBond.vue'
-import { declineInvite } from '@/features/auth/services/inviteService'
-import type { Invite } from '@/features/auth/types/invite'
+import type { InvitePreview } from '@/features/auth/types/invite'
 import type { Tenant } from '@/features/tenant/types/tenant'
 
-/** Coluna de apoio do convite: o vínculo, o que o perfil permite e a recusa. */
+/** Coluna de apoio do convite: o vínculo e o que o perfil permite. */
 const { invite, tenant, accepted = false } = defineProps<{
-  invite: Invite
+  invite: InvitePreview
   tenant: Tenant
-  /** Conta já criada: não há mais o que recusar. */
+  /** Vínculo já aceito: não há mais o que ignorar. */
   accepted?: boolean
 }>()
-
-const declineStatus = ref<'idle' | 'sending' | 'declined'>('idle')
-
-async function decline() {
-  if (declineStatus.value !== 'idle') return
-
-  declineStatus.value = 'sending'
-  try {
-    await declineInvite(invite.token)
-    declineStatus.value = 'declined'
-  } catch {
-    declineStatus.value = 'idle'
-  }
-}
 </script>
 
 <template>
@@ -57,39 +39,11 @@ async function decline() {
     </p>
   </section>
 
-  <div
+  <p
     v-if="!accepted"
-    class="flex flex-col gap-2 border-t border-line pt-[22px]"
+    class="border-t border-line pt-[22px] text-[15px] leading-relaxed text-ink-body"
   >
-    <BaseAlert
-      v-if="declineStatus === 'declined'"
-      variant="success"
-      title="Convite recusado"
-    >
-      <p>
-        Avisamos {{ invite.invitedBy }}. Este link não vale mais — se foi engano, peça um
-        novo convite.
-      </p>
-    </BaseAlert>
-
-    <template v-else>
-      <p class="text-[15px] leading-relaxed text-ink-body">
-        Não reconhece este convite?
-      </p>
-      <div>
-        <button
-          type="button"
-          class="text-[15px] font-medium text-brand underline-offset-4 hover:text-brand-strong hover:underline disabled:text-ink-soft"
-          :disabled="declineStatus === 'sending'"
-          @click="decline"
-        >
-          {{
-            declineStatus === 'sending'
-              ? 'Recusando…'
-              : 'Recusar o convite e avisar a organização'
-          }}
-        </button>
-      </div>
-    </template>
-  </div>
+    Não reconhece este convite? Basta não aceitá-lo: ele vence sozinho e nenhum vínculo é
+    criado.
+  </p>
 </template>

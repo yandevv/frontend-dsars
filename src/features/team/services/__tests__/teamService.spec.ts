@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 
 import {
   TeamRuleError,
@@ -6,87 +6,86 @@ import {
   inviteMember,
   inviteStatus,
   resendInvite,
-  revokeMemberInvite,
+  resetTeam,
 } from '../teamService'
-import { InviteError, fetchInvite, resetInvites } from '@/features/auth/services/inviteService'
-import { listAuditEntries, resetAudit } from '@/features/audit/services/auditService'
-import { DEMO_REQUESTS } from '@/features/requests/data/requests'
-import { isOpen } from '@/features/requests/constants/requestStatus'
-
-vi.mock('@/features/auth/services/fakeNetwork', () => ({ delay: () => Promise.resolve() }))
+import { startSession } from '@/features/auth/composables/useSession'
+import { mockApi, problem, route } from '@/test/api'
 
 const HELENA = { name: 'Helena Prado Vasconcelos', email: 'helena.vasconcelos@meridianosaude.org.br' }
+const EXPIRES = '2026-10-03T12:00:00.000Z'
 
 describe('teamService', () => {
   beforeEach(() => {
-    resetInvites()
-    resetAudit()
+    resetTeam()
+    startSession({
+      id: 'conta-helena',
+      name: HELENA.name,
+      email: HELENA.email,
+      role: 'encarregado',
+      emailConfirmed: true,
+      organizationId: 'org-1',
+    })
   })
 
-  it('mostra a carga de cada pessoa pelas requisições em aberto', async () => {
-    const { members } = await fetchTeam()
-    const beatriz = members.find((member) => member.name === 'Beatriz Falcão Ribeiro')!
-    const expected = DEMO_REQUESTS.filter(
-      (request) => request.assignee === beatriz.name && isOpen(request.status),
-    ).length
+  it('lista as pessoas e os convites que ainda não viraram vínculo', async () => {
+    const { members, invites } = await fetchTeam()
 
     expect(members).toHaveLength(3)
-    expect(beatriz.open).toBe(expected)
-  })
-
-  it('lista os convites que ainda não viraram conta', async () => {
-    const { invites } = await fetchTeam()
-
     expect(invites.map((invite) => inviteStatus(invite)).sort()).toEqual(['pendente', 'vencido'])
   })
 
-  it('convida alguém da organização com um link que funciona', async () => {
+  it('envia o convite pela API da organização e o mostra na lista', async () => {
+    const { calls } = mockApi([
+      route('POST', '/organizations/org-1/invites', { status: 202, body: { expiresAt: EXPIRES } }),
+    ])
+
     const invite = await inviteMember(
       { email: 'Dora.Lemos@meridianosaude.org.br', jobTitle: 'Apoio jurídico' },
       HELENA,
     )
 
-    expect(invite.email).toBe('dora.lemos@meridianosaude.org.br')
-    expect(invite.role).toBe('encarregado')
-    expect(inviteStatus(invite)).toBe('pendente')
-    await expect(fetchInvite(invite.token)).resolves.toMatchObject({ email: invite.email })
-
-    const [latest] = await listAuditEntries()
-    expect(latest).toMatchObject({ action: 'Convite de encarregado enviado', actor: HELENA.name })
+    expect(calls[0]!.body).toEqual({ email: 'dora.lemos@meridianosaude.org.br' })
+    expect(invite).toMatchObject({ email: 'dora.lemos@meridianosaude.org.br', expiresAt: EXPIRES })
+    const { invites } = await fetchTeam()
+    expect(invites[0]!.email).toBe('dora.lemos@meridianosaude.org.br')
   })
 
-  it('recusa endereço de fora, pessoa da equipe e convite repetido', async () => {
+  it('recusa endereço malformado e pessoa que já é da equipe, sem chamar a API', async () => {
+    const { calls } = mockApi([])
     const attempt = (email: string) => inviteMember({ email, jobTitle: 'Apoio jurídico' }, HELENA)
 
-    await expect(attempt('alguem@gmail.com')).rejects.toThrow(new TeamRuleError('fora-da-organizacao'))
+    await expect(attempt('sem-arroba')).rejects.toThrow(new TeamRuleError('email-invalido'))
     await expect(attempt('beatriz.falcao@meridianosaude.org.br')).rejects.toThrow(
       new TeamRuleError('ja-e-membro'),
     )
-    await expect(attempt('bruno.carvalho@meridianosaude.org.br')).rejects.toThrow(
-      new TeamRuleError('convite-pendente'),
-    )
-    await expect(attempt('sem-arroba')).rejects.toThrow(new TeamRuleError('email-invalido'))
+    expect(calls).toHaveLength(0)
   })
 
-  it('revoga o convite e o link deixa de funcionar', async () => {
-    const { invites } = await fetchTeam()
-    const pending = invites.find((invite) => inviteStatus(invite) === 'pendente')!
-
-    await revokeMemberInvite(pending, HELENA)
-
-    await expect(fetchInvite(pending.token)).rejects.toThrow(new InviteError('invalido'))
-    const { invites: after } = await fetchTeam()
-    expect(inviteStatus(after.find((invite) => invite.token === pending.token)!)).toBe('revogado')
-  })
-
-  it('reenvia um convite vencido com um link novo', async () => {
+  it('reenviar é convidar de novo, substituindo o convite anterior na lista', async () => {
+    mockApi([
+      route('POST', '/organizations/org-1/invites', { status: 202, body: { expiresAt: EXPIRES } }),
+    ])
     const { invites } = await fetchTeam()
     const expired = invites.find((invite) => inviteStatus(invite) === 'vencido')!
 
     const renewed = await resendInvite(expired, HELENA)
 
-    expect(renewed.token).not.toBe(expired.token)
-    expect(renewed.email).toBe(expired.email)
     expect(inviteStatus(renewed)).toBe('pendente')
+    const after = await fetchTeam()
+    expect(after.invites.filter((invite) => invite.email === expired.email)).toHaveLength(1)
+  })
+
+  it('repassa a recusa do servidor', async () => {
+    mockApi([
+      route(
+        'POST',
+        '/organizations/org-1/invites',
+        problem(409, 'Este endereço já responde como encarregado desta organização.'),
+      ),
+    ])
+
+    await expect(
+      inviteMember({ email: 'dora@meridianosaude.org.br', jobTitle: 'Apoio jurídico' }, HELENA),
+    ).rejects.toMatchObject({ status: 409 })
   })
 })

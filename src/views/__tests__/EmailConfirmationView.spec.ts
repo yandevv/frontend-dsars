@@ -3,21 +3,32 @@ import { flushPromises, mount, RouterLinkStub } from "@vue/test-utils";
 
 import EmailConfirmationView from "../EmailConfirmationView.vue";
 import { recordConfirmationSent } from "@/features/auth/services/emailConfirmationService";
-
-vi.mock("@/features/auth/services/fakeNetwork", () => ({ delay: () => Promise.resolve() }));
+import { endSession, startSession } from "@/features/auth/composables/useSession";
+import { mockApi, problem, route as apiRoute } from "@/test/api";
 
 const replace = vi.fn<(to: unknown) => Promise<void>>();
-const route: { params: Record<string, string>; query: Record<string, string> } = {
+const route: {
+  name?: string;
+  params: Record<string, string>;
+  query: Record<string, string>;
+} = {
   params: {},
   query: {},
 };
+
+const INVALID = "Este link de confirmação não é mais válido. Solicite o envio de um novo.";
 vi.mock("vue-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("vue-router")>()),
   useRoute: () => route,
   useRouter: () => ({ replace }),
 }));
 
-async function render(params: Record<string, string>, query: Record<string, string> = {}) {
+async function render(
+  params: Record<string, string>,
+  query: Record<string, string> = {},
+  name = "email-confirmation",
+) {
+  route.name = name;
   route.params = params;
   route.query = query;
   const wrapper = mount(EmailConfirmationView, {
@@ -30,6 +41,20 @@ async function render(params: Record<string, string>, query: Record<string, stri
 describe("EmailConfirmationView", () => {
   beforeEach(() => {
     replace.mockClear();
+    endSession();
+    mockApi([
+      apiRoute("POST", "/auth/confirm-email", (call) =>
+        (call.body as { token: string }).token === "ficha-valida"
+          ? { message: "ok" }
+          : problem(400, INVALID),
+      ),
+      apiRoute("POST", "/me/email-change/confirm", {
+        message: "Endereço de e-mail alterado.",
+        email: "nova@exemplo.com.br",
+      }),
+      apiRoute("GET", "/me", problem(401, "Sem sessão")),
+      apiRoute("POST", "/auth/refresh", problem(401, "Sem sessão")),
+    ]);
   });
 
   it("na espera do cadastro, diz para onde o link foi e trava o reenvio no intervalo", async () => {
@@ -56,37 +81,39 @@ describe("EmailConfirmationView", () => {
     expect(wrapper.text()).not.toMatch(/\b(RF|RN)\d{3}\b|art\.\s*\d/);
   });
 
-  it("confirma o cadastro pelo link", async () => {
-    const wrapper = await render({ token: "demo-cadastro" });
+  it("confirma o cadastro pelo link que chega com a ficha na query", async () => {
+    const wrapper = await render({}, { token: "ficha-valida" });
 
     expect(wrapper.get("h1").text()).toBe("E-mail confirmado. Conta ativada.");
     expect(wrapper.text()).toContain("Entrar no portal");
   });
 
+  it("aceita também a ficha no caminho, a forma antiga do link", async () => {
+    const wrapper = await render({ token: "ficha-valida" });
+
+    expect(wrapper.get("h1").text()).toBe("E-mail confirmado. Conta ativada.");
+  });
+
   it("confirma a troca mostrando o endereço novo e o substituído", async () => {
-    const wrapper = await render({ token: "demo-troca" });
+    startSession({
+      id: "conta-1",
+      name: "Marina Torres de Almeida",
+      email: "antiga@exemplo.com.br",
+      role: "titular",
+      emailConfirmed: true,
+    });
+    const wrapper = await render({}, { token: "ficha" }, "email-change-confirmation");
 
     expect(wrapper.get("h1").text()).toBe("Novo e-mail em vigor");
-    expect(wrapper.text()).toContain("Substitui");
+    expect(wrapper.text()).toContain("nova@exemplo.com.br");
+    expect(wrapper.text()).toContain("antiga@exemplo.com.br");
   });
 
-  it("no link vencido, pede outro e volta à espera", async () => {
-    const wrapper = await render({ token: "demo-expirado" });
-
-    expect(wrapper.get("h1").text()).toBe("Este link venceu");
-    await wrapper.findAll("button").find((b) => b.text() === "Enviar novo link")!.trigger("click");
-    await flushPromises();
-
-    expect(replace).toHaveBeenCalledWith({
-      name: "email-confirmation",
-      query: { origem: "cadastro", email: "pendente@exemplo.com.br" },
-    });
-  });
-
-  it("trata link inexistente sem dizer se existe conta", async () => {
-    const wrapper = await render({ token: "nao-existe" });
+  it("trata link vencido, usado ou inexistente sem dizer se existe conta", async () => {
+    const wrapper = await render({}, { token: "nao-existe" });
 
     expect(wrapper.get("h1").text()).toBe("Não conseguimos usar este link");
+    expect(wrapper.text()).toContain("ter vencido");
     expect(wrapper.text()).not.toContain("@");
   });
 });

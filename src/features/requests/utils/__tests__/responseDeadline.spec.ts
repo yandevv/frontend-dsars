@@ -6,6 +6,8 @@ import {
   formatDue,
   isImmediate,
   needsAccessFormat,
+  requestIsImmediate,
+  responseFormatFor,
 } from '../responseDeadline'
 import { daysUntil } from '@/shared/utils/date'
 
@@ -43,5 +45,22 @@ describe('responseDeadline', () => {
   it('pede o formato só no acesso aos dados', () => {
     expect(needsAccessFormat('II')).toBe(true)
     expect(needsAccessFormat('I')).toBe(false)
+  })
+})
+
+describe('prazo de um pedido já registrado', () => {
+  const HOUR = 3_600_000
+  const at = (ms: number) => new Date(Date.UTC(2026, 8, 26, 12) + ms).toISOString()
+
+  it('lê o prazo que o servidor calculou, e não o direito', () => {
+    expect(requestIsImmediate({ registeredAt: at(0), dueAt: at(24 * HOUR) })).toBe(true)
+    expect(requestIsImmediate({ registeredAt: at(0), dueAt: at(15 * 24 * HOUR) })).toBe(false)
+  })
+
+  it('envia o formato simplificado na confirmação e o escolhido no acesso', () => {
+    expect(responseFormatFor('I')).toBe('simplificado')
+    expect(responseFormatFor('II', 'simplificado')).toBe('simplificado')
+    expect(responseFormatFor('II')).toBe('completo')
+    expect(responseFormatFor('VI')).toBeUndefined()
   })
 })

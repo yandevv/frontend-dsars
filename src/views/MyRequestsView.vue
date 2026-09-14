@@ -12,6 +12,7 @@ import { LEGAL_DEADLINE_DAYS } from "@/features/requests/constants/requestPolicy
 import { cancelRequests } from "@/features/requests/services/requestService";
 import { useMyRequests } from "@/features/requests/composables/useMyRequests";
 import { useSession } from "@/features/auth/composables/useSession";
+import { messageOf } from "@/shared/api/ApiError";
 import type { DataRequest } from "@/features/requests/types/request";
 
 /**
@@ -63,6 +64,7 @@ const cancelOpen = ref(false);
 const cancelMode = ref<"individual" | "lote">("lote");
 const cancelTargets = ref<DataRequest[]>([]);
 const cancelling = ref(false);
+const cancelError = ref("");
 
 function cancelOne(request: DataRequest) {
   cancelMode.value = "individual";
@@ -80,6 +82,7 @@ function cancelSelected() {
 
 async function confirmCancel(reason: string) {
   cancelling.value = true;
+  cancelError.value = "";
   try {
     const { cancelled, skipped } = await cancelRequests(
       cancelTargets.value.map((request) => request.id),
@@ -90,13 +93,15 @@ async function confirmCancel(reason: string) {
 
     const left =
       skipped.length > 0
-        ? ` ${skipped.map((request) => request.protocol).join(", ")} já estava encerrada e ficou de fora.`
+        ? ` ${skipped.map((request) => request.protocol ?? "Uma requisição").join(", ")} já estava encerrada e ficou de fora.`
         : "";
     notice.value = {
       title:
         cancelled.length === 1 ? "Requisição cancelada" : `${cancelled.length} requisições canceladas`,
       text: `Motivo registrado: “${reason}”. O histórico de cada requisição guarda data, hora e motivo.${left}`,
     };
+  } catch (error) {
+    cancelError.value = messageOf(error);
   } finally {
     cancelling.value = false;
   }
@@ -308,6 +313,7 @@ async function confirmCancel(reason: string) {
       :requests="cancelTargets"
       :mode="cancelMode"
       :sending="cancelling"
+      :error="cancelError"
       @confirm="confirmCancel"
     />
   </AppShell>

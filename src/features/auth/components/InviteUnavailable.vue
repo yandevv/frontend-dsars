@@ -1,14 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
-import BaseAlert from '@/shared/ui/BaseAlert.vue'
 import BaseButton from '@/shared/ui/BaseButton.vue'
 import { INVITE_VALIDITY_DAYS } from '@/features/auth/constants/invitePolicy'
-import { requestNewInvite } from '@/features/auth/services/inviteService'
 import { formatDate } from '@/shared/utils/date'
 import type { InviteFailure } from '@/features/auth/services/inviteService'
-import type { Invite } from '@/features/auth/types/invite'
+import type { InvitePreview } from '@/features/auth/types/invite'
 
 /**
  * Convite que não leva ao formulário: vencido, já usado ou inexistente.
@@ -20,10 +18,8 @@ import type { Invite } from '@/features/auth/types/invite'
 const { reason, invite } = defineProps<{
   reason: InviteFailure
   /** Ausente quando o token não corresponde a convite nenhum. */
-  invite?: Invite
+  invite?: InvitePreview
 }>()
-
-const requestStatus = ref<'idle' | 'sending' | 'sent'>('idle')
 
 const eyebrow = computed(
   () =>
@@ -38,21 +34,10 @@ const title = computed(() => {
   if (reason === 'expirado') {
     return invite ? `Este convite venceu em ${formatDate(invite.expiresAt)}` : 'Este convite venceu'
   }
-  if (reason === 'utilizado') return 'A conta deste convite já foi criada'
+  if (reason === 'utilizado') return 'Este convite já foi aceito'
   return 'Não encontramos este convite'
 })
 
-async function requestAnother() {
-  if (requestStatus.value !== 'idle' || !invite) return
-
-  requestStatus.value = 'sending'
-  try {
-    await requestNewInvite(invite.token)
-    requestStatus.value = 'sent'
-  } catch {
-    requestStatus.value = 'idle'
-  }
-}
 </script>
 
 <template>
@@ -68,8 +53,8 @@ async function requestAnother() {
       v-if="reason === 'expirado'"
       class="text-[15px] leading-relaxed text-ink-body"
     >
-      Convites valem por {{ INVITE_VALIDITY_DAYS }} dias. Peça um novo a quem administra a
-      organização — o vínculo e o perfil continuam os mesmos.
+      Convites valem por {{ INVITE_VALIDITY_DAYS }} dias. Peça um novo a quem enviou — o
+      vínculo e o perfil continuam os mesmos.
     </p>
 
     <p
@@ -79,14 +64,10 @@ async function requestAnother() {
       <template v-if="invite">
         O convite para
         <span class="font-semibold break-words">{{ invite.email }}</span>
-        foi usado
-        <template v-if="invite.usedAt">
-          em {{ formatDate(invite.usedAt) }}
-        </template>.
-        Entre com essa conta para acessar o painel.
+        já foi aceito. Entre com essa conta para acessar o painel.
       </template>
       <template v-else>
-        Entre com a conta criada por este convite para acessar o painel.
+        Entre com a conta que aceitou este convite para acessar o painel.
       </template>
     </p>
 
@@ -98,30 +79,8 @@ async function requestAnother() {
       e-mail que recebeu ou fale com quem o enviou.
     </p>
 
-    <BaseAlert
-      v-if="requestStatus === 'sent'"
-      variant="success"
-      title="Pedido registrado"
-    >
-      <p v-if="invite">
-        Avisamos {{ invite.invitedBy }}. O novo convite chega em {{ invite.email }}.
-      </p>
-    </BaseAlert>
-
     <div
-      v-else-if="reason === 'expirado'"
-      class="pt-1"
-    >
-      <BaseButton
-        :busy="requestStatus === 'sending'"
-        @click="requestAnother"
-      >
-        {{ requestStatus === 'sending' ? 'Solicitando…' : 'Solicitar novo convite' }}
-      </BaseButton>
-    </div>
-
-    <div
-      v-else-if="reason === 'utilizado'"
+      v-if="reason === 'utilizado'"
       class="flex flex-wrap gap-2.5 pt-1"
     >
       <BaseButton :to="{ name: 'login', query: invite ? { email: invite.email } : {} }">

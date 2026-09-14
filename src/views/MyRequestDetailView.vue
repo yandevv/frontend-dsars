@@ -18,14 +18,16 @@ import SurveyInvite from "@/features/survey/components/SurveyInvite.vue";
 import SurveyRecord from "@/features/survey/components/SurveyRecord.vue";
 import SurveyStatusCard from "@/features/survey/components/SurveyStatusCard.vue";
 import { submitSurvey, surveyAvailable } from "@/features/survey/services/surveyService";
-import { REQUEST_OUTCOME_LABELS, isOpen } from "@/features/requests/constants/requestStatus";
-import { cancelRequests, fetchRequest } from "@/features/requests/services/requestService";
-import { downloadText } from "@/shared/utils/download";
+import { isOpen } from "@/features/requests/constants/requestStatus";
+import {
+  cancelRequests,
+  downloadAttachment,
+  fetchRequest,
+} from "@/features/requests/services/requestService";
 import { findRight } from "@/shared/constants/lgpdRights";
-import { formatDate, formatDateTime } from "@/shared/utils/date";
-import { normalizeEmail } from "@/features/auth/data/accounts";
+import { formatDate } from "@/shared/utils/date";
+import { messageOf } from "@/shared/api/ApiError";
 import { useRequestMessages } from "@/features/requests/composables/useRequestMessages";
-import { useSession } from "@/features/auth/composables/useSession";
 import type { DataRequest, RequestAttachment } from "@/features/requests/types/request";
 
 /**
@@ -36,7 +38,6 @@ import type { DataRequest, RequestAttachment } from "@/features/requests/types/r
  * pode desistir enquanto a requisição estiver em aberto.
  */
 const route = useRoute();
-const { account } = useSession("titular");
 
 const request = ref<DataRequest | null>(null);
 const loading = ref(true);
@@ -44,24 +45,26 @@ const missing = ref(false);
 
 const cancelOpen = ref(false);
 const cancelling = ref(false);
+const cancelError = ref("");
 const notice = ref<{ title: string; text: string } | null>(null);
 
 const open = computed(() => (request.value ? isOpen(request.value.status) : false));
 
-const viewer = computed(() => ({ name: account.value.name, role: "titular" as const }));
-const messages = useRequestMessages(request, viewer);
+const messages = useRequestMessages(request);
 const messagesPanel = useTemplateRef<InstanceType<typeof RequestMessages>>("messagesPanel");
+const actionError = ref("");
 
 async function sendMessage(message: { text: string; attachments: RequestAttachment[] }) {
-  const answeringComplement = request.value?.status === "aguardando-complemento";
-  if (!(await messages.send(message))) return;
+  if (await messages.send(message)) messagesPanel.value?.reset();
+}
 
-  messagesPanel.value?.reset();
-  if (answeringComplement) {
-    notice.value = {
-      title: "Complemento enviado",
-      text: "A equipe recebeu sua resposta e a requisição voltou para análise.",
-    };
+async function download(attachmentId: string) {
+  const current = request.value;
+  if (!current) return;
+  try {
+    await downloadAttachment(current.id, attachmentId);
+  } catch (error) {
+    actionError.value = messageOf(error);
   }
 }
 
@@ -102,8 +105,11 @@ async function sendSurvey(answer: { rating: number; comment: string }) {
   if (!current || surveySending.value) return;
 
   surveySending.value = true;
+  actionError.value = "";
   try {
-    request.value = { ...(await submitSurvey(current.id, answer)) };
+    request.value = await submitSurvey(current.id, answer);
+  } catch (error) {
+    actionError.value = messageOf(error);
   } finally {
     surveySending.value = false;
   }
@@ -116,13 +122,9 @@ async function load(id: string) {
   surveyPhase.value = askedForSurvey.value ? "formulario" : "convite";
 
   try {
-    const found = await fetchRequest(id);
-    // Pedido de outra pessoa responde como inexistente: dizer "não é seu"
-    // confirmaria que o identificador existe.
-    if (normalizeEmail(found.subject.email) !== normalizeEmail(account.value.email)) {
-      throw new Error("Requisição de outro titular.");
-    }
-    request.value = found;
+    // Pedido de outra pessoa responde como inexistente: o servidor não
+    // confirma que o identificador existe.
+    request.value = await fetchRequest(id);
   } catch {
     request.value = null;
     missing.value = true;
@@ -144,35 +146,33 @@ async function confirmCancel(reason: string) {
   if (!current) return;
 
   cancelling.value = true;
+  cancelError.value = "";
   try {
-    const { cancelled } = await cancelRequests([current.id], reason);
+    const { cancelled, skipped } = await cancelRequests([current.id], reason);
     cancelOpen.value = false;
-    request.value = { ...(cancelled[0] ?? current) };
-    notice.value = {
-      title: "Requisição cancelada",
-      text: `Motivo registrado: “${reason}”. A organização deixou de contar o prazo e não responderá a este pedido.`,
-    };
+    request.value = await fetchRequest(current.id);
+    notice.value =
+      cancelled.length > 0
+        ? {
+            title: "Requisição cancelada",
+            text: `Motivo registrado: “${reason}”. A organização deixou de contar o prazo e não responderá a este pedido.`,
+          }
+        : {
+            title: "A requisição não pôde ser cancelada",
+            text:
+              skipped[0]?.reason === "NOT_OPEN"
+                ? "Ela foi encerrada antes do cancelamento chegar."
+                : "Esta requisição não pode ser cancelada pela sua conta.",
+          };
+  } catch (error) {
+    cancelError.value = messageOf(error);
   } finally {
     cancelling.value = false;
   }
 }
 
-/** A resposta em texto simples, para guardar junto dos próprios documentos. */
-function downloadAnswer() {
-  const current = request.value;
-  if (!current?.answer) return;
-
-  const { answer } = current;
-  const lines = [
-    `Requisição ${current.protocol} — ${rightLabel.value}`,
-    `Desfecho: ${REQUEST_OUTCOME_LABELS[answer.outcome]}`,
-    `Respondida em ${formatDateTime(answer.sentAt)} por ${answer.author}`,
-    "",
-    answer.text,
-    ...(answer.legalBasis ? ["", `Fundamento informado: ${answer.legalBasis}`] : []),
-  ];
-  downloadText(`resposta-${current.protocol}.txt`, lines.join("\n"), "text/plain");
-}
+/** O resultado anexado ao parecer — o primeiro arquivo, que é o que se baixa. */
+const answerFile = computed(() => request.value?.answer?.attachments.find((file) => file.id));
 </script>
 
 <template>
@@ -225,11 +225,11 @@ function downloadAnswer() {
             Cancelar requisição
           </BaseButton>
           <BaseButton
-            v-else-if="request.answer"
+            v-else-if="answerFile?.id"
             variant="secondary"
             block
             class="sm:w-auto"
-            @click="downloadAnswer"
+            @click="download(answerFile.id)"
           >
             Baixar a resposta
           </BaseButton>
@@ -299,10 +299,22 @@ function downloadAnswer() {
             />
             <SurveyRecord v-else-if="request.survey" :answer="request.survey" />
 
-            <RequestSentAnswer v-if="request.answer" :answer="request.answer" audience="titular" />
+            <RequestSentAnswer
+              v-if="request.answer"
+              :answer="request.answer"
+              audience="titular"
+              @download="download"
+            />
 
-            <RequestSubjectRequest :request="request" audience="titular" />
+            <RequestSubjectRequest :request="request" audience="titular" @download="download" />
 
+            <p
+              v-if="actionError"
+              role="alert"
+              class="border-l-[3px] border-danger bg-danger-wash px-4 py-3 text-[15px] text-danger-body"
+            >
+              {{ actionError }}
+            </p>
             <p
               v-if="messages.error.value"
               role="alert"
@@ -313,12 +325,12 @@ function downloadAnswer() {
             <RequestMessages
               ref="messagesPanel"
               :messages="request.messages"
-              :viewer="viewer"
               :open="open"
               :sending="messages.sending.value"
               @send="sendMessage"
               @edit="messages.edit"
               @remove="messages.remove"
+              @download="download"
             />
 
             <RequestTimeline :entries="request.timeline" audience="titular" />
@@ -371,7 +383,7 @@ function downloadAnswer() {
               </h2>
               <p class="text-sm leading-relaxed text-ink-body">
                 A equipe analisa o pedido e responde por aqui. Se faltar alguma informação, você
-                recebe um pedido de complemento no portal e por e-mail.
+                recebe uma mensagem no portal e por e-mail.
               </p>
               <p class="text-sm leading-relaxed text-ink-soft">
                 Cancelar é definitivo: a organização deixa de contar o prazo e não responderá ao
@@ -388,6 +400,7 @@ function downloadAnswer() {
       :requests="request ? [request] : []"
       mode="individual"
       :sending="cancelling"
+      :error="cancelError"
       @confirm="confirmCancel"
     />
   </AppShell>

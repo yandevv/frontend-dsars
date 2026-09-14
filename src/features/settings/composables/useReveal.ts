@@ -9,11 +9,7 @@ export const REVEAL_SECONDS = 30
  * O dado volta a ocultar sozinho depois de meio minuto: quem revelou o CPF
  * para conferir não deveria deixá-lo exposto até lembrar de clicar em ocultar.
  */
-export function useReveal(
-  seconds: number = REVEAL_SECONDS,
-  /** Revelar é acesso a dado pessoal: a tela avisa quem registra. */
-  onReveal?: (key: string) => void,
-) {
+export function useReveal(seconds: number = REVEAL_SECONDS) {
   const revealed = ref<Set<string>>(new Set())
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
 
@@ -27,7 +23,6 @@ export function useReveal(
 
   function reveal(key: string) {
     revealed.value = new Set(revealed.value).add(key)
-    onReveal?.(key)
     clearTimeout(timers.get(key))
     timers.set(
       key,
