@@ -1,199 +1,361 @@
-# frontend-dsars
+<h1 align="center">Tutela - Data Subject Request Portal (LGPD) 🛡️📨</h1>
 
-Front-end da **Tutela**, plataforma em que organizações recebem e conduzem
-**requisições de titulares de dados** previstas na Lei Geral de Proteção de Dados
-(Lei nº 13.709/2018). Projeto de TCC.
+<p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.0.0-blue.svg?cacheSeconds=2592000" />
+  <a href="http://www.apache.org/licenses/" target="_blank">
+    <img alt="License: Apache License 2.0" src="https://img.shields.io/badge/License-Apache%20License%202.0-yellow.svg" />
+  </a>
+  <a href="https://twitter.com/yandevv_" target="_blank">
+    <img alt="Twitter: yandevv_" src="https://img.shields.io/twitter/follow/yandevv_.svg?style=social" />
+  </a>
+</p>
 
-Cada organização cliente tem o seu próprio portal público: o mesmo produto, com a
-identificação, a pessoa encarregada e os contatos daquela organização.
+<p align="center">
+  The frontend of <strong>Tutela</strong>, a platform where organizations receive and handle the data subject requests guaranteed by Brazil's General Data Protection Law (LGPD, Law nº 13.709/2018) — from the public portal where a person asks for their data, to the queue, reports and audit trail of the data protection officer.
+</p>
 
-## Stack
+<h5 align="center">Give a ⭐️ if this project helped you or if you find it interesting!</h5>
 
-Vue 3 (Composition API com `<script setup>`), TypeScript, Vite, Vue Router, Pinia,
-Tailwind CSS v4, Vitest e Cypress.
+---
 
-## Como rodar
+## 📋 Table of Contents
 
-```sh
+- [About](#-about)
+- [Features](#-features)
+- [Tech Stack](#️-tech-stack)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Configuration](#️-configuration)
+- [Usage](#-usage)
+- [Testing](#-testing)
+- [Project Structure](#-project-structure)
+- [Backend](#-backend)
+- [About Me](#-about-me)
+- [License](#-license)
+- [What I Learned](#-what-i-learned)
+
+---
+
+## 🎯 About
+
+**Tutela** is my undergraduate thesis project (TCC — Uni-FACEF). The LGPD gives every person the right to ask an organization whether it processes their data, to access, correct or delete it, and more (art. 18) — and gives the organization legal deadlines to answer (art. 19). Tutela is the channel for that conversation.
+
+Each organization gets its own public portal, with its name, its data protection officer (DPO) and its contacts. On it:
+
+- **Data subjects** create an account, register requests, follow the legal deadline, talk to the organization, cancel what they no longer need and rate the service.
+- **DPOs** work a queue ordered by deadline, answer through a message thread, finalize requests with a conclusive answer and the delivered result, register requests received by phone or mail, and read management reports.
+
+The UI is in Brazilian Portuguese and was **designed before development** as high-fidelity prototypes, each screen in a desktop (1280 px) and a mobile (360 px) frame. The functional requirements document of the thesis has the last word whenever the prototype and the business rules disagree.
+
+### How It Works
+
+1. **Sign up**: The data subject creates an account and confirms the e-mail address
+2. **Register a request**: Chooses one of the nine rights of art. 18, describes the request and attaches documents
+3. **Deadline starts**: A protocol number and a UUID v7 identifier are issued — 24 hours for simplified answers, 15 days otherwise
+4. **DPO handles it**: The request enters the organization's queue, highlighted when due soon or overdue
+5. **Conversation**: Both sides exchange messages and attachments inside the request
+6. **Conclusion**: The DPO sends the conclusive answer with the delivered result attached
+7. **Feedback & reports**: The data subject rates the service; the DPO follows the indicators in the management report
+
+---
+
+## ✨ Features
+
+### Current Features
+
+- ✅ **Public Portal**
+  - Landing page with the nine rights, response deadlines and how the service works
+  - Organization name and DPO contact loaded from the API
+  - Terms of use and privacy notice
+
+- ✅ **Authentication**
+  - Sign up with a live password strength meter
+  - E-mail confirmation, with a resend cooldown
+  - Sign in with "keep me signed in", and sign-in with Google (OAuth)
+  - Password recovery and reset by e-mail
+  - Role-based redirect after sign-in (data subject or DPO)
+  - DPO invitation acceptance
+
+- ✅ **Data Subject Area**
+  - Register requests (one right per request), with attachments
+  - Request list ordered by urgency, with batch selection and batch cancellation
+  - Request detail with deadline, answer, history and downloadable attachments
+  - Message thread with edit (30-minute window) and delete of own messages
+  - Satisfaction survey on concluded requests
+
+- ✅ **DPO Area**
+  - Request queue with filters and search kept in the URL, and CSV export
+  - Request detail with the conclusive answer panel (answer text + required result file)
+  - Register requests on behalf of a data subject (phone, e-mail, mail, in person…)
+  - Management report computed by the server, with CSV and PDF export
+  - Audit log and team invitations
+
+- ✅ **Notifications**
+  - Header bell with unread counter, kept in sync with the notifications page
+  - Mark as read, mark all as read, clear list
+  - Opening a notification leads to the related resource — or explains why it is gone
+
+- ✅ **Account Settings**
+  - Personal data masked by default, revealed on demand for 30 seconds
+  - E-mail change confirmed at the new address
+  - Password change and active sessions management
+  - Notification preferences per event and channel, with mandatory ones locked
+
+- ✅ **Security**
+  - Session in `httpOnly` cookies — no token ever touches JavaScript
+  - CSRF header on every write request
+  - Single-flight session refresh when the access token expires
+  - Route guards by role (authorization itself is enforced by the server)
+
+- ✅ **Accessibility & Responsiveness**
+  - Every screen works from 320 px wide
+  - Keyboard navigation, focus management in dialogs and skip link
+  - Errors announced to screen readers
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+- **Framework**: [Vue 3](https://vuejs.org/) with Composition API (`<script setup>`)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Routing**: [Vue Router](https://router.vuejs.org/)
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/) with design tokens in `@theme`
+- **HTTP Client**: native `fetch`, wrapped with CSRF, session refresh and `problem+json` error handling
+- **Package Manager**: [pnpm](https://pnpm.io/)
+
+### Testing
+
+- **Unit Tests**: [Vitest](https://vitest.dev/) + [Vue Test Utils](https://test-utils.vuejs.org/)
+- **End-to-End Tests**: [Cypress](https://www.cypress.io/), with the API simulated by `cy.intercept`
+
+### Code Quality
+
+- **Linting**: [oxlint](https://oxc.rs/) + [ESLint](https://eslint.org/)
+- **Type Checking**: [vue-tsc](https://github.com/vuejs/language-tools)
+
+### Prototyping
+
+- [Figma](https://www.figma.com/) - UI/UX design and high-fidelity prototypes of every screen, in desktop and mobile frames
+
+---
+
+## 📦 Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js** (version 22.18 or 24.12 and above)
+- **pnpm**
+- **The backend** ([backend-dsars](https://github.com/yandevv/backend-dsars)) running — _optional for the unit and end-to-end tests, which simulate the API_
+
+---
+
+## 🚀 Installation
+
+1. **Clone the repository**
+
+```bash
+git clone https://github.com/yandevv/frontend-dsars.git
+cd frontend-dsars
+```
+
+2. **Install the dependencies**
+
+```bash
 pnpm install
-pnpm dev            # ambiente de desenvolvimento
-pnpm build          # type-check + build de produção
-pnpm test:unit      # testes de unidade (Vitest)
-pnpm test:e2e       # testes de ponta a ponta (Cypress, sobre o build)
-pnpm lint           # oxlint + ESLint, com correção automática
-pnpm type-check     # vue-tsc
 ```
 
-## Organização do código
+3. **Start the backend** — follow the instructions in [backend-dsars](https://github.com/yandevv/backend-dsars) (Docker Compose for PostgreSQL, Mailpit and MinIO, then migrations and seed).
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+`.env.development` and `.env.production` already point to the defaults. See `.env.example` for the documented template.
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `VITE_API_BASE` | Base path of the API calls | No | `/api` |
+| `VITE_ORGANIZATION_SLUG` | Slug of the organization served by this portal | **Yes** | `demonstracao` |
+| `API_PROXY_TARGET` | Where the dev/preview proxy sends `/api` (not exposed to the browser) | No | `http://localhost:3000` |
+
+### API Proxy
+
+During development, Vite proxies `/api` to the backend, so the frontend and the API share the same origin — cookies work with no CORS setup. The proxy also rewrites the refresh cookie path from `/auth` to `/api/auth`, so the browser sends it back on session refresh. In production, place both behind the same domain with a reverse proxy doing the same.
+
+---
+
+## 🎮 Usage
+
+### Development Mode
+
+```bash
+pnpm dev
+```
+
+**Access the application:**
+
+- **Frontend**: http://localhost:5173
+- **Backend API** (through the proxy): http://localhost:5173/api
+
+With the backend seeded, you can sign in with its demo accounts — a data subject and a DPO — using the password printed by the seed.
+
+### Production Build
+
+```bash
+pnpm build     # type-check + production build
+pnpm preview   # serves the build at http://localhost:4173
+```
+
+### Code Quality
+
+```bash
+pnpm type-check
+pnpm lint      # oxlint + ESLint, with auto-fix
+```
+
+---
+
+## 🧪 Testing
+
+### Unit Tests
+
+```bash
+pnpm test:unit
+```
+
+Services, composables, components and views, with the API mocked at the `fetch` level.
+
+### End-to-End Tests
+
+```bash
+pnpm test:e2e       # headless, over the production build
+pnpm test:e2e:dev   # interactive Cypress, over the dev server
+```
+
+Every spec simulates the API with `cy.intercept`. A catch-all answers any call a test didn't simulate, so the suite never reaches a backend running on your machine.
+
+---
+
+## 📁 Project Structure
 
 ```
-src/
-  assets/styles/main.css   Tailwind + tokens de design (@theme)
-  shared/                  o que atravessa funcionalidades
-    ui/                    componentes de base (prefixo Base*)
-    types/  constants/     tipos e listas de domínio (ex.: direitos do art. 18)
-  features/                uma pasta por área do produto
-    tenant/                organização dona do portal
-      types/ data/ composables/
-    landing/               página inicial pública
-      components/ data/ types/
-    auth/                  criar conta e entrar
-      components/ composables/ constants/ data/ services/ types/
-    notifications/         avisos do sino do cabeçalho
-      composables/ data/ types/
-    requests/              requisições de titulares, do registro ao desfecho
-      components/ composables/ constants/ data/ services/ types/ utils/
-    reports/               indicadores de atendimento
-      components/ composables/ constants/ data/ services/ types/ utils/
-  shared/layout/           moldura das telas autenticadas (cabeçalho e rodapé)
-  views/                   destinos de rota
-  router/                  definição das rotas
+frontend-dsars/
+├── cypress/
+│   ├── e2e/                   # One spec per screen
+│   └── support/               # API fixtures, in-memory servers, commands
+│
+├── src/
+│   ├── assets/styles/         # Tailwind + design tokens (@theme)
+│   ├── features/              # One folder per product area
+│   │   ├── audit/             # DPO audit log
+│   │   ├── auth/              # Sign up, sign in, e-mail confirmation, invites
+│   │   ├── help/              # Help page content, per role
+│   │   ├── landing/           # Public landing page
+│   │   ├── notifications/     # Bell and notifications page
+│   │   ├── reports/           # Management report
+│   │   ├── requests/          # Requests, from registration to conclusion
+│   │   ├── settings/          # Personal data, security, notification preferences
+│   │   ├── survey/            # Satisfaction survey
+│   │   ├── team/              # Team and invitations
+│   │   └── tenant/            # The organization that owns the portal
+│   ├── router/                # Routes and role guards
+│   ├── shared/
+│   │   ├── api/               # HTTP client, API contracts, enum mapping
+│   │   ├── constants/         # Domain lists (the nine rights of art. 18)
+│   │   ├── layout/            # Shell of authenticated screens
+│   │   ├── ui/                # Base components (Base*)
+│   │   └── utils/             # Dates, bytes, downloads, UUID
+│   ├── test/                  # Vitest setup, fetch mock and factories
+│   ├── views/                 # Route targets
+│   ├── App.vue                # Root component
+│   └── main.ts                # Application entry point
+│
+├── .env.example               # Environment variables template
+├── vite.config.ts             # Vite config and API proxy
+├── LICENSE                    # Apache License 2.0
+└── README.md                  # This file
 ```
 
-A regra é simples: **código de domínio mora em `features/`**, e só sobe para
-`shared/` quando mais de uma funcionalidade precisa dele. Cada nova tela do
-sistema (fila de atendimento, nova requisição, relatório gerencial…) entra como
-uma pasta em `features/` sem mexer nas outras.
+Inside each feature, code is split into `components/`, `composables/`, `constants/`, `services/`, `types/` and `utils/`. Code only moves to `shared/` when more than one feature needs it, and **services are the only place that talks to the API**.
 
-### De onde vem o conteúdo da página
+---
 
-Nada de texto variável fica preso no template. Os dados da organização vêm de
-`features/tenant/composables/useTenant.ts`, hoje servidos por uma configuração
-fixa em `features/tenant/data/`. **Essa função é a única emenda com a origem dos
-dados**: quando o back-end existir, basta trocar o corpo dela — por exemplo,
-resolvendo o tenant pelo subdomínio — sem tocar em nenhum componente.
+## 🔌 Backend
 
-### As contas ainda não têm servidor
+This frontend consumes the **Tutela API**, built with NestJS, PostgreSQL (Prisma), S3-compatible storage and cookie-based authentication:
 
-`features/auth/services/` cumpre para as contas o mesmo papel que `useTenant()`
-cumpre para a organização: é a emenda com o back-end. As telas de cadastro e de
-acesso já conversam com essas funções — inclusive nos casos de recusa — e
-responder de verdade é trocar o corpo delas por chamadas HTTP, sem tocar em
-componente nenhum.
+**[yandevv/backend-dsars](https://github.com/yandevv/backend-dsars)**
 
-Enquanto isso, elas respondem a partir das contas de demonstração em
-`features/auth/data/accounts.ts`, que são as mesmas publicadas no protótipo do
-design. Existem para que os estados previstos nas regras de negócio (e-mail já
-cadastrado, conta pendente de confirmação, bloqueio por tentativas) possam ser
-percorridos e testados antes de haver API, e somem junto com o serviço falso.
+With the backend running, its interactive API documentation is at **http://localhost:3000/docs**.
 
-Senha `SenhaSegura!123` para todas; qualquer outra combinação falha, como no
-sistema real.
+---
 
-| Conta | Para exercitar |
-| --- | --- |
-| `titular@exemplo.com.br` | acesso de titular |
-| `helena.vasconcelos@meridianosaude.org.br` | acesso de encarregado |
-| `pendente@exemplo.com.br` | conta sem o e-mail confirmado (RN005) |
+## 👤 About Me
 
-O bloqueio do RN008 se desfaz sozinho ao fim dos 15 minutos; para não esperar,
-recarregue a página.
+**YanDevv (author)**
 
-Uma ressalva que sobrevive ao back-end: a contagem de tentativas e o bloqueio do
-RN008 rodam no navegador **porque ainda não há servidor**. Proteção contra força
-bruta precisa morar no servidor; o que o cliente faz é apenas explicar o bloqueio
-a quem está na tela. Vale o mesmo para o vencimento de um convite: quem valida
-um token é o servidor, e conferir a data aqui só serve para a tela ter o que
-mostrar.
+* 🐦 Twitter: [@yandevv_](https://twitter.com/yandevv_)
+* 💼 LinkedIn: [@yandevv](https://linkedin.com/in/yandevv)
+* 🐙 GitHub: [@yandevv](https://github.com/yandevv)
 
-### O convite de encarregado
+---
 
-`/convite/:token` é a mesma tela de cadastro com duas diferenças que vêm do
-convite: o e-mail chega travado, porque trocá-lo desfaria o vínculo, e não há
-escolha de perfil — ele foi atribuído por quem convidou. A conta nasce com o
-e-mail já confirmado: o link foi enviado para aquele endereço e aberto por quem o
-recebeu, que é a mesma prova que o RN005 pede no cadastro comum.
+## 📝 License
 
-Como um convite chega por e-mail, nenhum dos estados é alcançável pela navegação:
-chega-se a cada um pela URL. Os convites de demonstração vivem em
-`features/auth/data/invites.ts`, e as datas deles são relativas a hoje em vez de
-fixas — um convite "válido" com data gravada no código venceria sozinho e levaria
-consigo a tela que ele existe para demonstrar.
+Copyright © 2026 [YanDevv](https://github.com/yandevv)
 
-| URL | Estado |
-| --- | --- |
-| `/convite/convite-valido` | convite em aberto |
-| `/convite/convite-expirado` | convite vencido |
-| `/convite/convite-usado` | conta do convite já criada |
-| `/convite/` + qualquer outro código | convite inexistente |
+This project is licensed under the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0).
 
-### As telas de dentro do sistema
+You may obtain a copy of the License at: http://www.apache.org/licenses/LICENSE-2.0
 
-Quatro telas já existem atrás do login: abrir uma requisição, a fila de
-atendimento, o atendimento de uma requisição e o relatório gerencial.
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-| URL | Tela | Perfil |
-| --- | --- | --- |
-| `/requisicoes/nova` | Nova requisição (RF004) | titular |
-| `/painel/fila` | Fila de atendimento (RF008 / RF009) | encarregado |
-| `/painel/requisicoes/2026-000418` | Requisição vencida, em análise | encarregado |
-| `/painel/requisicoes/2026-000431` | Requisição aguardando complemento | encarregado |
-| `/painel/requisicoes/2026-000392` | Requisição concluída, em leitura | encarregado |
-| `/painel/relatorios` | Relatório gerencial (RF028) | encarregado |
+---
 
-**Não há sessão nem autorização.** `features/auth/composables/useSession.ts` é a
-emenda onde elas vão entrar; enquanto não há servidor, ela devolve a conta de
-demonstração do perfil que a rota exige, e é isso que permite abrir qualquer
-tela digitando o endereço. Vale a mesma ressalva do bloqueio do RN008: decidir
-quem pode ver a fila de uma organização é trabalho do servidor, e esconder um
-link no navegador nunca foi proteção.
+## 📖 What I Learned
 
-A fila filtrada tem endereço próprio — `/painel/fila?prazo=vencidas` abre já
-recortada. É o "filtros no endereço" do quadro 1b do design: um recorte pode
-ser enviado a um colega sem explicação.
+This project was the frontend half of my thesis, and it pushed me to turn a legal text and a requirements document into screens that a regular person can actually use. Here are the key takeaways:
 
-### As requisições de demonstração
+**Frontend Architecture:**
+- Organized the app **by feature** instead of by file type, keeping each product area self-contained.
+- Kept a single seam between the UI and the data: services translate the API into UI types, so components never deal with the backend's format.
+- Shared state across the header and pages with module-level composables.
 
-Vivem em `features/requests/data/` e, como os convites, têm **datas relativas a
-hoje**. Uma fila com datas gravadas no código venceria inteira com o tempo, e a
-tela existe justamente para mostrar a diferença entre uma requisição vencida,
-uma que vence em poucos dias e uma em dia.
+**Working with a Real API:**
+- Implemented **cookie-based sessions** with a CSRF header and a single-flight token refresh.
+- Parsed **RFC 9457 `problem+json`** errors and showed the server's messages directly to users.
+- Configured a **Vite proxy** — and learned the hard way that cookie paths must follow the proxy prefix.
+- Handled **multipart uploads** and presigned download links for attachments.
 
-Três divergências deliberadas em relação ao mockup, todas para manter o sistema
-coerente consigo mesmo:
+**Testing:**
+- Wrote unit tests for services, composables, components and views with **Vitest** and **Vue Test Utils**.
+- Built **Cypress** end-to-end suites with in-memory fake servers on top of `cy.intercept`, so the tests don't depend on a running backend.
 
-- **A titular não é Helena Prado Vasconcelos.** No design ela aparece ao mesmo
-  tempo como encarregada do portal público e como titular que abre pedidos
-  contra a própria organização. Aqui ela continua sendo a encarregada, e quem
-  abre os pedidos é Marina Torres de Almeida, a conta de titular de
-  `features/auth/data/accounts.ts`.
-- **As unidades mudaram de cidade.** O Instituto Meridiano fica em Franca/SP,
-  e o mockup situava os atendimentos em Belo Horizonte.
-- **Beatriz Falcão e Caio Duarte são analistas**, não encarregados: são os nomes
-  que o mockup usava na coluna "responsável" da fila.
+**Accessibility & Responsiveness:**
+- Designed every screen to work from **320 px** wide.
+- Managed focus in dialogs, forms and error summaries, and announced changes to screen readers.
 
-O relatório gerencial precisa de mais do que oito requisições para que um
-gráfico diga alguma coisa, então `features/reports/data/history.ts` completa o
-ano com atendimentos encerrados. A base é gerada por um gerador congruente
-linear com semente fixa: os mesmos números em toda execução, porque um
-relatório que mudasse a cada recarga não serviria nem para conferir uma conta
-nem para ilustrar um texto.
+**UI/UX Design:**
+- **Prototyped every screen before coding**, in desktop and mobile frames.
+- Translated the prototypes' colors and typography into **Tailwind CSS 4 design tokens**.
+- Learned when the **requirements must win over the design**: business rules, deadlines and legal wording come first.
 
-Duas regras do relatório que valem registro, porque são de apuração e não de
-exibição: requisições canceladas pelo titular ficam fora do tempo médio e do
-cálculo de prazo, e a satisfação agregada some quando o recorte tem menos de
-cinco respostas — nesse tamanho, uma média apontaria para quem respondeu.
+**Domain Knowledge:**
+- Studied the **LGPD**: the nine rights of art. 18, the response deadlines of art. 19 and what an audit trail must keep.
+- Learned how privacy concerns shape the UI: masking personal data, not revealing whether an e-mail has an account, and suppressing survey results too small to stay anonymous.
 
-### Design
+**Challenges Overcome:**
+- Replacing every mocked service with the real API without rewriting the components.
+- Modeling deadlines in hours (24 h) and in days (15 days) side by side.
+- Keeping the notification counter consistent across the whole app.
 
-As telas vêm do projeto no Claude Design
-`ddc13361-c194-4fda-9c07-60e119fc5b6d`:
+This project taught me that **a good frontend is a careful translation** — of the law into plain language, of the design into accessible components, and of the API into a model the screens can trust.
 
-| Tela | Arquivo do design |
-| --- | --- |
-| `/` | `Pagina Inicial Publica.dc.html` |
-| `/registrar` | `Registro de Conta.dc.html` |
-| `/entrar` | `Login.dc.html` |
-| `/convite/:token` | `Registro de Conta.dc.html` (quadro 1c) |
-| `/requisicoes/nova` | `Nova Requisicao.dc.html` |
-| `/painel/fila` | `Fila de Atendimento.dc.html` |
-| `/painel/requisicoes/:protocolo` | `Detalhe da Requisicao Encarregado.dc.html` |
-| `/painel/relatorios` | `Relatorio Gerencial.dc.html` |
+---
 
-Os tokens de cor e tipografia foram extraídos desses arquivos para o bloco
-`@theme` de `src/assets/styles/main.css`.
-
-O mockup traz dois quadros — 1280 px e 360 px — que são **a mesma página em duas
-larguras**, e não duas páginas. Onde o quadro de 360 px encurtava o texto,
-mantivemos a redação completa: manter duas versões da mesma frase não se sustenta
-e esconderia conteúdo de quem acessa pelo celular.
+<p align="center">Made with ❤️ by YanDevv</p>
